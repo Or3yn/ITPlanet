@@ -9,6 +9,8 @@ import { Slider } from "@/components/ui/slider"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { AlertCircle, Check, X, Save, Edit, Trash2, ChevronRight, ChevronLeft, Eye, EyeOff } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 // Определение типов объектов и их размеров
 interface ObjectSize {
@@ -67,11 +69,73 @@ interface Layer {
   enabled: boolean
 }
 
+// Add interfaces for terrain and metadata
+interface TerrainUpload {
+  id: string
+  name: string
+  date: string
+  loaded: boolean
+  progress: number
+  heightDataLoaded: boolean
+  spectralDataLoaded: boolean
+  iceDataLoaded: boolean
+}
+
+interface Metadata {
+  id: string
+  name: string
+  date: string
+  data: Record<string, any>
+}
+
+// Add type definitions for objectSizes, objectNames, and objectColors
+
+type InfrastructureKey = 
+  | "residential-ind" 
+  | "residential-common" 
+  | "sports" 
+  | "administrative" 
+  | "medical" 
+  | "research" 
+  | "repair" 
+  | "spaceport" 
+  | "communication" 
+  | "plantation" 
+  | "waste" 
+  | "production" 
+  | "astronomy" 
+  | "solar" 
+  | "mining";
+
+type ObjectSizeMap = Record<InfrastructureKey, { width: number; height: number; safetyZone: number }>;
+
+type StringMap = Record<InfrastructureKey, string>;
+
+const objectSizes: ObjectSizeMap = {
+  "residential-ind": { width: 2, height: 2, safetyZone: 1 },
+  "residential-common": { width: 4, height: 3, safetyZone: 2 },
+  sports: { width: 3, height: 4, safetyZone: 2 },
+  administrative: { width: 3, height: 3, safetyZone: 2 },
+  medical: { width: 3, height: 3, safetyZone: 2 },
+  research: { width: 4, height: 3, safetyZone: 2 },
+  repair: { width: 3, height: 3, safetyZone: 2 },
+  spaceport: { width: 10, height: 10, safetyZone: 5 },
+  communication: { width: 2, height: 2, safetyZone: 1 },
+  plantation: { width: 4, height: 4, safetyZone: 2 },
+  waste: { width: 5, height: 5, safetyZone: 3 },
+  production: { width: 4, height: 4, safetyZone: 2 },
+  astronomy: { width: 3, height: 3, safetyZone: 2 },
+  solar: { width: 5, height: 3, safetyZone: 2 },
+  mining: { width: 3, height: 3, safetyZone: 2 },
+}
+
 export default function MoonMapPage() {
   // Основные состояния
   const [activeTab, setActiveTab] = useState("2d")
   const [selectedArea, setSelectedArea] = useState("shackleton")
-  const [selectedInfrastructure, setSelectedInfrastructure] = useState<string | null>(null)
+  // Add new state for multi-selection
+  const [selectedAreas, setSelectedAreas] = useState<string[]>(["shackleton"])
+  const [selectedInfrastructure, setSelectedInfrastructure] = useState<InfrastructureKey | null>(null)
   const [selectedHabitableModule, setSelectedHabitableModule] = useState<string | null>(null)
   const [selectedTechObject, setSelectedTechObject] = useState<string | null>(null)
   const [areaSize, setAreaSize] = useState(500)
@@ -107,6 +171,22 @@ export default function MoonMapPage() {
   const [selectedLayerInfo, setSelectedLayerInfo] = useState<Layer | null>(null)
   const [showUploadDialog, setShowUploadDialog] = useState(false)
   const [uploadedAreas, setUploadedAreas] = useState<string[]>([])
+  
+  // Add new states for terrain and metadata uploads
+  const [terrainUploads, setTerrainUploads] = useState<TerrainUpload[]>([])
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [terrainUploadName, setTerrainUploadName] = useState("")
+  const [showTerrainDialog, setShowTerrainDialog] = useState(false)
+  const [currentUploadType, setCurrentUploadType] = useState<"terrain" | "metadata" | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  
+  const [metadataUploads, setMetadataUploads] = useState<Metadata[]>([])
+  const [metadataUploadName, setMetadataUploadName] = useState("")
+  const [showMetadataDialog, setShowMetadataDialog] = useState(false)
+  const [showMetadataEditor, setShowMetadataEditor] = useState(false)
+  const [selectedMetadata, setSelectedMetadata] = useState<Metadata | null>(null)
+  const [editableMetadata, setEditableMetadata] = useState<string>("")
+  const [selectedMetadataFile, setSelectedMetadataFile] = useState<File | null>(null)
 
   // Add the necessary state variables at the top of the component
   // Find the section with state variables and add these:
@@ -284,25 +364,7 @@ export default function MoonMapPage() {
     sufficientArea: false,
   })
 
-  const objectSizes = {
-    "residential-ind": { width: 2, height: 2, safetyZone: 1 },
-    "residential-common": { width: 4, height: 3, safetyZone: 2 },
-    sports: { width: 3, height: 4, safetyZone: 2 },
-    administrative: { width: 3, height: 3, safetyZone: 2 },
-    medical: { width: 3, height: 3, safetyZone: 2 },
-    research: { width: 4, height: 3, safetyZone: 2 },
-    repair: { width: 3, height: 3, safetyZone: 2 },
-    spaceport: { width: 10, height: 10, safetyZone: 5 },
-    communication: { width: 2, height: 2, safetyZone: 1 },
-    plantation: { width: 4, height: 4, safetyZone: 2 },
-    waste: { width: 5, height: 5, safetyZone: 3 },
-    production: { width: 4, height: 4, safetyZone: 2 },
-    astronomy: { width: 3, height: 3, safetyZone: 2 },
-    solar: { width: 5, height: 3, safetyZone: 2 },
-    mining: { width: 3, height: 3, safetyZone: 2 },
-  }
-
-  const objectNames = {
+  const objectNames: StringMap = {
     "residential-ind": "Жилой модуль (инд.)",
     "residential-common": "Жилой модуль (общий)",
     sports: "Спортивный модуль",
@@ -320,7 +382,7 @@ export default function MoonMapPage() {
     mining: "Добывающая шахта",
   }
 
-  const objectColors = {
+  const objectColors: StringMap = {
     "residential-ind": "bg-blue-500",
     "residential-common": "bg-blue-600",
     sports: "bg-green-500",
@@ -361,7 +423,7 @@ export default function MoonMapPage() {
   }
 
   // Обработчик выбора инфраструктуры
-  const handleInfrastructureSelect = (type: string, category: "habitable" | "tech") => {
+  const handleInfrastructureSelect = (type: InfrastructureKey, category: "habitable" | "tech") => {
     if (category === "habitable") {
       setSelectedHabitableModule(type === selectedHabitableModule ? null : type)
       setSelectedTechObject(null)
@@ -469,13 +531,13 @@ export default function MoonMapPage() {
   const handlePlaceObject = (x: number, y: number) => {
     if (!selectedInfrastructure) return
 
-    const { width, height, safetyZone } = objectSizes[selectedInfrastructure]
+    const { width, height, safetyZone } = objectSizes[selectedInfrastructure] || { width: 3, height: 3, safetyZone: 1 }
 
     if (canPlaceObject(x, y, width, height, safetyZone)) {
       const newObject: PlacedObject = {
         id: Date.now(),
         type: selectedInfrastructure,
-        name: objectNames[selectedInfrastructure],
+        name: objectNames[selectedInfrastructure] || "Неизвестный объект",
         x,
         y,
         width,
@@ -485,11 +547,10 @@ export default function MoonMapPage() {
       }
 
       setPlacedObjects([...placedObjects, newObject])
-      setSelectedInfrastructure(null)
-      setSelectedHabitableModule(null)
-      setSelectedTechObject(null)
-      setDraggedObject(null)
-      setShowPlacementCriteria(false)
+      setErrorMessage(null)
+    } else {
+      setErrorMessage("Невозможно разместить объект в этой позиции. Проверьте ограничения и безопасные зоны.")
+      setTimeout(() => setErrorMessage(null), 3000)
     }
   }
 
@@ -817,8 +878,14 @@ export default function MoonMapPage() {
     }
 
     setFiltersApplied(true)
-    // In a real application, this would filter the map data based on selected criteria
-    alert("Фильтры применены. Подходящие участки подсвечены зеленым, неподходящие затемнены.")
+    
+    // If sunlight filter is selected, automatically select Malapert Mountain
+    // and set it as the only available area
+    if (areaFilters.sunlight) {
+      setSelectedArea("malapert")
+      // Make Malapert the only selected area when sunlight filter is active
+      setSelectedAreas(["malapert"])
+    }
   }
 
   // Обработчик редактирования маршрута
@@ -1019,7 +1086,7 @@ export default function MoonMapPage() {
 
   // Рендер размещенных объектов
   const renderPlacedObjects = () => {
-    const elements = []
+    const elements: React.ReactNode[] = []
 
     // First render safety zones as gray squares
     placedObjects.forEach((obj) => {
@@ -1097,7 +1164,7 @@ export default function MoonMapPage() {
   const renderPlacementPreview = () => {
     if (!hoveredCell || !selectedInfrastructure) return null
 
-    const { width, height, safetyZone } = objectSizes[selectedInfrastructure]
+    const { width, height, safetyZone } = objectSizes[selectedInfrastructure] || { width: 3, height: 3, safetyZone: 1 }
     const { x, y } = hoveredCell
 
     const canPlace = canPlaceObject(x, y, width, height, safetyZone)
@@ -1615,6 +1682,212 @@ export default function MoonMapPage() {
       </>
     )
   }
+  
+  // Add terrain upload dialog renderer
+  const renderTerrainUploadDialog = () => {
+    return (
+      <>
+        {showTerrainDialog ? (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-lg w-96 max-w-[90%]">
+              <h2 className="text-xl font-bold mb-4">Загрузить рельеф</h2>
+              <p className="text-gray-700 mb-4">Вы можете загрузить данные о рельефе в формате GeoTIFF.</p>
+              
+              <div className="mb-4">
+                <label htmlFor="terrainName" className="block text-sm font-medium text-gray-700 mb-1">
+                  Имя участка
+                </label>
+                <input
+                  type="text"
+                  id="terrainName"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  value={terrainUploadName}
+                  onChange={(e) => setTerrainUploadName(e.target.value)}
+                  placeholder="Введите название участка"
+                />
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Выберите файл GeoTIFF
+                </label>
+                <div 
+                  className={`border border-dashed border-gray-300 rounded-md p-4 text-center ${selectedFile ? 'bg-blue-50' : ''}`}
+                  onDrop={(e) => handleFileDrop(e, 'terrain')}
+                  onDragOver={handleDragOver}
+                >
+                  <input
+                    type="file"
+                    id="terrainFile"
+                    className="hidden"
+                    accept=".tif,.tiff,.geotiff"
+                    onChange={(e) => handleFileSelect(e, 'terrain')}
+                  />
+                  <label 
+                    htmlFor="terrainFile" 
+                    className="px-4 py-2 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors cursor-pointer inline-block"
+                  >
+                    Выбрать файл
+                  </label>
+                  <p className="text-sm text-gray-500 mt-2">или перетащите файл сюда</p>
+                  
+                  {selectedFile && (
+                    <div className="mt-2 text-sm text-blue-600 flex items-center justify-center">
+                      <Check className="h-4 w-4 mr-1" />
+                      <span className="truncate max-w-[250px]" title={selectedFile.name}>
+                        {selectedFile.name}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="flex justify-end">
+                <Button 
+                  variant="outline" 
+                  className="mr-2" 
+                  onClick={() => {
+                    setShowTerrainDialog(false)
+                    setSelectedFile(null)
+                    setTerrainUploadName("")
+                  }}
+                >
+                  Отмена
+                </Button>
+                <Button 
+                  onClick={handleUploadTerrain}
+                  disabled={!selectedFile || !terrainUploadName.trim()}
+                >
+                  Загрузить
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </>
+    )
+  }
+  
+  // Add metadata upload dialog renderer
+  const renderMetadataUploadDialog = () => {
+    return (
+      <>
+        {showMetadataDialog ? (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-lg w-96 max-w-[90%]">
+              <h2 className="text-xl font-bold mb-4">Загрузить метаданные</h2>
+              <p className="text-gray-700 mb-4">Вы можете загрузить метаданные в формате TIFF Tags.</p>
+              
+              <div className="mb-4">
+                <label htmlFor="metadataName" className="block text-sm font-medium text-gray-700 mb-1">
+                  Имя метаданных
+                </label>
+                <input
+                  type="text"
+                  id="metadataName"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  value={metadataUploadName}
+                  onChange={(e) => setMetadataUploadName(e.target.value)}
+                  placeholder="Введите название метаданных"
+                />
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Выберите файл с метаданными
+                </label>
+                <div 
+                  className={`border border-dashed border-gray-300 rounded-md p-4 text-center ${selectedMetadataFile ? 'bg-blue-50' : ''}`}
+                  onDrop={(e) => handleFileDrop(e, 'metadata')}
+                  onDragOver={handleDragOver}
+                >
+                  <input
+                    type="file"
+                    id="metadataFile"
+                    className="hidden"
+                    accept=".tif,.tiff,.xml,.json"
+                    onChange={(e) => handleFileSelect(e, 'metadata')}
+                  />
+                  <label 
+                    htmlFor="metadataFile" 
+                    className="px-4 py-2 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors cursor-pointer inline-block"
+                  >
+                    Выбрать файл
+                  </label>
+                  <p className="text-sm text-gray-500 mt-2">или перетащите файл сюда</p>
+                  
+                  {selectedMetadataFile && (
+                    <div className="mt-2 text-sm text-blue-600 flex items-center justify-center">
+                      <Check className="h-4 w-4 mr-1" />
+                      <span className="truncate max-w-[250px]" title={selectedMetadataFile.name}>
+                        {selectedMetadataFile.name}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="flex justify-end">
+                <Button 
+                  variant="outline" 
+                  className="mr-2" 
+                  onClick={() => {
+                    setShowMetadataDialog(false)
+                    setSelectedMetadataFile(null)
+                    setMetadataUploadName("")
+                  }}
+                >
+                  Отмена
+                </Button>
+                <Button 
+                  onClick={handleUploadMetadata}
+                  disabled={!selectedMetadataFile || !metadataUploadName.trim()}
+                >
+                  Загрузить
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </>
+    )
+  }
+  
+  // Add metadata editor dialog renderer
+  const renderMetadataEditorDialog = () => {
+    return (
+      <>
+        {showMetadataEditor && selectedMetadata ? (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-lg w-[800px] max-w-[90%] max-h-[90vh] flex flex-col">
+              <h2 className="text-xl font-bold mb-4">Редактирование метаданных: {selectedMetadata.name}</h2>
+              
+              <div className="flex-grow overflow-y-auto mb-4">
+                <textarea
+                  className="w-full h-[400px] border border-gray-300 rounded-md px-3 py-2 font-mono text-sm"
+                  value={editableMetadata}
+                  onChange={(e) => setEditableMetadata(e.target.value)}
+                />
+              </div>
+              
+              <div className="text-sm text-gray-600 mb-4">
+                <p>Здесь вы можете редактировать метаданные в формате JSON. Внесите необходимые изменения и нажмите "Сохранить".</p>
+              </div>
+              
+              <div className="flex justify-end">
+                <Button variant="outline" className="mr-2" onClick={() => setShowMetadataEditor(false)}>
+                  Отмена
+                </Button>
+                <Button onClick={handleSaveMetadata}>
+                  Сохранить
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </>
+    )
+  }
 
   useEffect(() => {
     // Set initial sideMenuOpen state based on screen width
@@ -1631,6 +1904,357 @@ export default function MoonMapPage() {
     // Clean up event listener on unmount
     return () => window.removeEventListener("resize", handleResize)
   }, [])
+
+  // Add new handler functions for terrain upload
+  const handleUploadTerrain = () => {
+    if (!terrainUploadName.trim()) {
+      alert("Пожалуйста, введите имя участка")
+      return
+    }
+
+    if (!selectedFile) {
+      alert("Пожалуйста, выберите файл")
+      return
+    }
+
+    // Create new terrain upload with 0% progress
+    const newTerrainUpload: TerrainUpload = {
+      id: `terrain_${Date.now()}`,
+      name: terrainUploadName,
+      date: new Date().toLocaleDateString(),
+      loaded: false,
+      progress: 0,
+      heightDataLoaded: false,
+      spectralDataLoaded: false,
+      iceDataLoaded: false
+    }
+
+    // Add to terrain uploads
+    const updatedTerrainUploads = [...terrainUploads, newTerrainUpload];
+    setTerrainUploads(updatedTerrainUploads);
+    
+    // Start simulated upload process
+    setUploadProgress(0)
+    setCurrentUploadType("terrain")
+    
+    // Keep track of the current upload index
+    const currentUploadIndex = updatedTerrainUploads.length - 1;
+    
+    // Simulate file processing with progress
+    const simulateUpload = (currentProgress = 0) => {
+      if (currentProgress <= 100) {
+        setUploadProgress(currentProgress)
+        
+        // Update the progress of the current terrain upload
+        setTerrainUploads(prev => {
+          const updated = [...prev];
+          if (updated[currentUploadIndex]) {
+            updated[currentUploadIndex].progress = currentProgress;
+          }
+          return updated;
+        });
+        
+        // Simulate processing phases
+        if (currentProgress >= 30 && !updatedTerrainUploads[currentUploadIndex].heightDataLoaded) {
+          setTerrainUploads(prev => {
+            const updated = [...prev]
+            if (updated[currentUploadIndex]) {
+              updated[currentUploadIndex].heightDataLoaded = true
+            }
+            return updated
+          })
+        }
+        
+        if (currentProgress >= 60 && !updatedTerrainUploads[currentUploadIndex].spectralDataLoaded) {
+          setTerrainUploads(prev => {
+            const updated = [...prev]
+            if (updated[currentUploadIndex]) {
+              updated[currentUploadIndex].spectralDataLoaded = true
+            }
+            return updated
+          })
+        }
+        
+        if (currentProgress >= 90 && !updatedTerrainUploads[currentUploadIndex].iceDataLoaded) {
+          setTerrainUploads(prev => {
+            const updated = [...prev]
+            if (updated[currentUploadIndex]) {
+              updated[currentUploadIndex].iceDataLoaded = true
+            }
+            return updated
+          })
+        }
+        
+        // Mark as completed when done
+        if (currentProgress === 100) {
+          setTerrainUploads(prev => {
+            const updated = [...prev]
+            if (updated[currentUploadIndex]) {
+              updated[currentUploadIndex].loaded = true;
+              updated[currentUploadIndex].progress = 100;
+            }
+            return updated
+          })
+          
+          // Automatically select the newly uploaded terrain
+          setSelectedArea(terrainUploadName)
+          if (!selectedAreas.includes(terrainUploadName)) {
+            setSelectedAreas([...selectedAreas, terrainUploadName])
+          }
+          
+          setCurrentUploadType(null)
+          setShowTerrainDialog(false)
+          setTerrainUploadName("") // Clear the input field for next upload
+          setSelectedFile(null) // Clear selected file
+          
+          // Don't reset the upload progress - it should remain at 100%
+        }
+        
+        setTimeout(() => simulateUpload(currentProgress + 5), 200)
+      }
+    }
+    
+    simulateUpload()
+  }
+  
+  // Add handler for metadata upload
+  const handleUploadMetadata = () => {
+    if (!metadataUploadName.trim()) {
+      alert("Пожалуйста, введите имя метаданных")
+      return
+    }
+    
+    if (!selectedMetadataFile) {
+      alert("Пожалуйста, выберите файл")
+      return
+    }
+    
+    // Create sample metadata from TIFF
+    const sampleMetadata = {
+      ImageWidth: 2048,
+      ImageLength: 2048,
+      BitsPerSample: 32,
+      Compression: "None",
+      PhotometricInterpretation: "BlackIsZero",
+      SamplesPerPixel: 1,
+      PlanarConfiguration: "Contig",
+      SampleFormat: "IEEEFP",
+      ModelTiePointTag: [0, 0, 0, -80.5, -88.2, 0],
+      ModelPixelScaleTag: [0.01, 0.01, 0],
+      GeoAsciiParamsTag: "WGS 84|WGS 84|",
+      GeoDoubleParamsTag: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      GeoKeyDirectoryTag: [1, 1, 0, 15],
+      GDAL_METADATA: "<GDALMetadata><Item name='AREA_OR_POINT'>Area</Item><Item name='altitude'>800</Item><Item name='illumination'>78</Item><Item name='slope'>2.3</Item><Item name='soil_type'>реголитовый</Item></GDALMetadata>",
+      DateTime: new Date().toISOString(),
+      Software: "Lunar Terrain Processor v2.3",
+      CopyrightNotice: "© NASA/LRO 2023",
+      FileName: selectedMetadataFile.name
+    }
+    
+    const newMetadata: Metadata = {
+      id: `metadata_${Date.now()}`,
+      name: metadataUploadName,
+      date: new Date().toLocaleDateString(),
+      data: sampleMetadata
+    }
+    
+    // Preserve the uploaded metadata
+    const updatedMetadataUploads = [...metadataUploads, newMetadata];
+    setMetadataUploads(updatedMetadataUploads)
+    
+    // Close dialog but don't reset selections immediately
+    // This ensures data will be displayed properly
+    setShowMetadataDialog(false)
+    
+    // Schedule clearing the form after a brief delay
+    // This ensures the user can see the success before the form is cleared
+    setTimeout(() => {
+      setMetadataUploadName("")
+      setSelectedMetadataFile(null)
+    }, 500)
+  }
+
+  // Add handler for file selection
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'terrain' | 'metadata') => {
+    const files = e.target.files
+    if (files && files.length > 0) {
+      if (type === 'terrain') {
+        setSelectedFile(files[0])
+      } else {
+        setSelectedMetadataFile(files[0])
+      }
+    }
+  }
+
+  // Add handler for file drop
+  const handleFileDrop = (e: React.DragEvent<HTMLDivElement>, type: 'terrain' | 'metadata') => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    const files = e.dataTransfer.files
+    if (files && files.length > 0) {
+      if (type === 'terrain') {
+        setSelectedFile(files[0])
+      } else {
+        setSelectedMetadataFile(files[0])
+      }
+    }
+  }
+
+  // Add handler for drag over
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  // Add handler for metadata editing
+  const handleEditMetadata = (metadata: Metadata) => {
+    setSelectedMetadata(metadata)
+    setEditableMetadata(JSON.stringify(metadata.data, null, 2))
+    setShowMetadataEditor(true)
+  }
+  
+  // Add handler for saving edited metadata
+  const handleSaveMetadata = () => {
+    if (!selectedMetadata) return
+    
+    try {
+      const parsedMetadata = JSON.parse(editableMetadata)
+      
+      const updatedMetadataUploads = metadataUploads.map(m => 
+        m.id === selectedMetadata.id 
+          ? { ...m, data: parsedMetadata } 
+          : m
+      )
+      
+      setMetadataUploads(updatedMetadataUploads)
+      setShowMetadataEditor(false)
+      setSelectedMetadata(null)
+      setEditableMetadata("")
+    } catch (error) {
+      alert("Ошибка в формате JSON. Пожалуйста, проверьте данные.")
+    }
+  }
+
+  // Add localStorage functionality to load saved state on component mount
+  useEffect(() => {
+    // Helper function to safely parse localStorage items
+    const getSavedItem = <T,>(key: string, defaultValue: T): T => {
+      try {
+        const savedItem = localStorage.getItem(key);
+        return savedItem ? JSON.parse(savedItem) : defaultValue;
+      } catch (error) {
+        console.error(`Error loading ${key} from localStorage:`, error);
+        return defaultValue;
+      }
+    };
+
+    // Load state from localStorage
+    setSelectedArea(getSavedItem('moonMap.selectedArea', 'shackleton'));
+    setSelectedAreas(getSavedItem('moonMap.selectedAreas', ['shackleton']));
+    setPlacedObjects(getSavedItem('moonMap.placedObjects', []));
+    setRoutes(getSavedItem('moonMap.routes', []));
+    setMeasurements(getSavedItem('moonMap.measurements', []));
+    setSavedProjects(getSavedItem('moonMap.savedProjects', []));
+    setCurrentProjectId(getSavedItem('moonMap.currentProjectId', null));
+    setMapZoom(getSavedItem('moonMap.mapZoom', 1));
+    setMapPosition(getSavedItem('moonMap.mapPosition', { x: 0, y: 0 }));
+    setLayers(getSavedItem('moonMap.layers', layers));
+    setSideMenuOpen(getSavedItem('moonMap.sideMenuOpen', true));
+    setResourceSettings(getSavedItem('moonMap.resourceSettings', resourceSettings));
+    setResourceStatus(getSavedItem('moonMap.resourceStatus', resourceStatus));
+    setResourceAdvice(getSavedItem('moonMap.resourceAdvice', resourceAdvice));
+    setAreaFilters(getSavedItem('moonMap.areaFilters', areaFilters));
+    setObjectParams(getSavedItem('moonMap.objectParams', objectParams));
+    setRestrictedArea(getSavedItem('moonMap.restrictedArea', 0));
+    setRestrictedArea(getSavedItem('moonMap.restrictedArea', 0));
+    setRestrictionShape(getSavedItem('moonMap.restrictionShape', 'ellipse'));
+    setRestrictionEnabled(getSavedItem('moonMap.restrictionEnabled', false));
+    setEllipseWidth(getSavedItem('moonMap.ellipseWidth', 120));
+    setEllipseHeight(getSavedItem('moonMap.ellipseHeight', 60));
+    setPolygonPoints(getSavedItem('moonMap.polygonPoints', []));
+    setTerrainUploads(getSavedItem('moonMap.terrainUploads', []));
+    setMetadataUploads(getSavedItem('moonMap.metadataUploads', []));
+    setUploadedAreas(getSavedItem('moonMap.uploadedAreas', []));
+  }, []);
+
+  // Save placed objects whenever they change
+  useEffect(() => {
+    localStorage.setItem('moonMap.placedObjects', JSON.stringify(placedObjects));
+  }, [placedObjects]);
+
+  // Save routes whenever they change
+  useEffect(() => {
+    localStorage.setItem('moonMap.routes', JSON.stringify(routes));
+  }, [routes]);
+
+  // Save measurements whenever they change
+  useEffect(() => {
+    localStorage.setItem('moonMap.measurements', JSON.stringify(measurements));
+  }, [measurements]);
+
+  // Save projects whenever they change
+  useEffect(() => {
+    localStorage.setItem('moonMap.savedProjects', JSON.stringify(savedProjects));
+    if (currentProjectId) {
+      localStorage.setItem('moonMap.currentProjectId', JSON.stringify(currentProjectId));
+    }
+  }, [savedProjects, currentProjectId]);
+
+  // Save map settings whenever they change
+  useEffect(() => {
+    localStorage.setItem('moonMap.mapZoom', JSON.stringify(mapZoom));
+    localStorage.setItem('moonMap.mapPosition', JSON.stringify(mapPosition));
+  }, [mapZoom, mapPosition]);
+
+  // Save side menu state
+  useEffect(() => {
+    localStorage.setItem('moonMap.sideMenuOpen', JSON.stringify(sideMenuOpen));
+  }, [sideMenuOpen]);
+
+  // Save selected areas
+  useEffect(() => {
+    localStorage.setItem('moonMap.selectedArea', JSON.stringify(selectedArea));
+    localStorage.setItem('moonMap.selectedAreas', JSON.stringify(selectedAreas));
+  }, [selectedArea, selectedAreas]);
+
+  // Save layers state
+  useEffect(() => {
+    localStorage.setItem('moonMap.layers', JSON.stringify(layers));
+  }, [layers]);
+
+  // Save resource settings and status
+  useEffect(() => {
+    localStorage.setItem('moonMap.resourceSettings', JSON.stringify(resourceSettings));
+    localStorage.setItem('moonMap.resourceStatus', JSON.stringify(resourceStatus));
+    localStorage.setItem('moonMap.resourceAdvice', JSON.stringify(resourceAdvice));
+  }, [resourceSettings, resourceStatus, resourceAdvice]);
+
+  // Save area filters and object params
+  useEffect(() => {
+    localStorage.setItem('moonMap.areaFilters', JSON.stringify(areaFilters));
+    localStorage.setItem('moonMap.objectParams', JSON.stringify(objectParams));
+  }, [areaFilters, objectParams]);
+
+  // Save restriction settings
+  useEffect(() => {
+    localStorage.setItem('moonMap.restrictionEnabled', JSON.stringify(restrictionEnabled));
+    localStorage.setItem('moonMap.restrictionShape', JSON.stringify(restrictionShape));
+    localStorage.setItem('moonMap.ellipseWidth', JSON.stringify(ellipseWidth));
+    localStorage.setItem('moonMap.ellipseHeight', JSON.stringify(ellipseHeight));
+    localStorage.setItem('moonMap.polygonPoints', JSON.stringify(polygonPoints));
+    localStorage.setItem('moonMap.restrictedArea', JSON.stringify(restrictedArea));
+  }, [restrictionEnabled, restrictionShape, ellipseWidth, ellipseHeight, polygonPoints, restrictedArea]);
+
+  // Save terrain and metadata uploads
+  useEffect(() => {
+    localStorage.setItem('moonMap.terrainUploads', JSON.stringify(terrainUploads));
+    localStorage.setItem('moonMap.uploadedAreas', JSON.stringify(uploadedAreas));
+  }, [terrainUploads, uploadedAreas]);
+
+  useEffect(() => {
+    localStorage.setItem('moonMap.metadataUploads', JSON.stringify(metadataUploads));
+  }, [metadataUploads]);
 
   return (
     <div className="min-h-screen bg-white">
@@ -1688,43 +2312,135 @@ export default function MoonMapPage() {
                 <div className="flex flex-wrap gap-3 mb-4">
                   <button
                     className={`px-4 py-2 ${
-                      selectedArea === "shackleton" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-800"
-                    } rounded-md hover:bg-blue-200 transition-colors`}
-                    onClick={() => setSelectedArea("shackleton")}
+                      selectedAreas.includes("shackleton") 
+                        ? "bg-blue-600 text-white" 
+                        : filtersApplied && areaFilters.sunlight
+                          ? "bg-gray-400 text-gray-600 cursor-not-allowed opacity-60" 
+                          : "bg-gray-100 text-gray-800"
+                    } rounded-md hover:${filtersApplied && areaFilters.sunlight ? "" : "bg-blue-200"} transition-colors`}
+                    onClick={() => {
+                      // Если фильтр освещенности применен, то кратер Шеклтон недоступен
+                      if (filtersApplied && areaFilters.sunlight) return;
+                      
+                      // Toggle selection for multi-select
+                      if (selectedAreas.includes("shackleton")) {
+                        setSelectedAreas(selectedAreas.filter(area => area !== "shackleton"))
+                      } else {
+                        setSelectedAreas([...selectedAreas, "shackleton"])
+                      }
+                      setSelectedArea("shackleton")
+                    }}
+                    disabled={filtersApplied && areaFilters.sunlight}
                   >
                     Кратер Шеклтон
                   </button>
                   <button
                     className={`px-4 py-2 ${
-                      selectedArea === "cabeus" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-800"
-                    } rounded-md hover:bg-blue-200 transition-colors`}
-                    onClick={() => setSelectedArea("cabeus")}
+                      selectedAreas.includes("cabeus") 
+                        ? "bg-blue-600 text-white" 
+                        : filtersApplied && areaFilters.sunlight
+                          ? "bg-gray-400 text-gray-600 cursor-not-allowed opacity-60" 
+                          : "bg-gray-100 text-gray-800"
+                    } rounded-md hover:${filtersApplied && areaFilters.sunlight ? "" : "bg-blue-200"} transition-colors`}
+                    onClick={() => {
+                      // Если фильтр освещенности применен, то кратер Кабеус недоступен
+                      if (filtersApplied && areaFilters.sunlight) return;
+                      
+                      if (selectedAreas.includes("cabeus")) {
+                        setSelectedAreas(selectedAreas.filter(area => area !== "cabeus"))
+                      } else {
+                        setSelectedAreas([...selectedAreas, "cabeus"])
+                      }
+                      setSelectedArea("cabeus")
+                    }}
+                    disabled={filtersApplied && areaFilters.sunlight}
                   >
                     Кратер Кабеус
                   </button>
                   <button
                     className={`px-4 py-2 ${
-                      selectedArea === "haworth" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-800"
-                    } rounded-md hover:bg-blue-200 transition-colors`}
-                    onClick={() => setSelectedArea("haworth")}
+                      selectedAreas.includes("haworth") 
+                        ? "bg-blue-600 text-white" 
+                        : filtersApplied && areaFilters.sunlight
+                          ? "bg-gray-400 text-gray-600 cursor-not-allowed opacity-60" 
+                          : "bg-gray-100 text-gray-800"
+                    } rounded-md hover:${filtersApplied && areaFilters.sunlight ? "" : "bg-blue-200"} transition-colors`}
+                    onClick={() => {
+                      // Если фильтр освещенности применен, то плато Хаворт недоступно
+                      if (filtersApplied && areaFilters.sunlight) return;
+                      
+                      if (selectedAreas.includes("haworth")) {
+                        setSelectedAreas(selectedAreas.filter(area => area !== "haworth"))
+                      } else {
+                        setSelectedAreas([...selectedAreas, "haworth"])
+                      }
+                      setSelectedArea("haworth")
+                    }}
+                    disabled={filtersApplied && areaFilters.sunlight}
                   >
                     Плато Хаворт
                   </button>
                   <button
                     className={`px-4 py-2 ${
-                      selectedArea === "malapert" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-800"
+                      selectedAreas.includes("malapert") || (filtersApplied && areaFilters.sunlight) 
+                        ? "bg-blue-600 text-white" 
+                        : "bg-gray-100 text-gray-800"
                     } rounded-md hover:bg-blue-200 transition-colors`}
-                    onClick={() => setSelectedArea("malapert")}
+                    onClick={() => {
+                      if (selectedAreas.includes("malapert")) {
+                        // Если фильтр освещенности применен, нельзя снять выбор с горы Малаперт
+                        if (filtersApplied && areaFilters.sunlight) return;
+                        
+                        setSelectedAreas(selectedAreas.filter(area => area !== "malapert"))
+                      } else {
+                        setSelectedAreas([...selectedAreas, "malapert"])
+                      }
+                      setSelectedArea("malapert")
+                    }}
                   >
                     Гора Малаперт
                   </button>
+                  
+                  {/* Display uploaded terrain areas as buttons with the same style */}
+                  {terrainUploads.map((upload) => (
+                    <button
+                      key={upload.id}
+                      className={`px-4 py-2 ${
+                        selectedAreas.includes(upload.name) 
+                          ? "bg-blue-600 text-white" 
+                          : filtersApplied && areaFilters.sunlight
+                            ? "bg-gray-400 text-gray-600 cursor-not-allowed opacity-60" 
+                            : "bg-gray-100 text-gray-800"
+                      } rounded-md hover:${filtersApplied && areaFilters.sunlight ? "" : "bg-blue-200"} transition-colors`}
+                      onClick={() => {
+                        // Если фильтр освещенности применен, то загруженные участки недоступны
+                        if (filtersApplied && areaFilters.sunlight) return;
+                        
+                        if (selectedAreas.includes(upload.name)) {
+                          setSelectedAreas(selectedAreas.filter(area => area !== upload.name))
+                        } else {
+                          setSelectedAreas([...selectedAreas, upload.name])
+                        }
+                        setSelectedArea(upload.name)
+                      }}
+                      disabled={filtersApplied && areaFilters.sunlight}
+                    >
+                      {upload.name}
+                    </button>
+                  ))}
                 </div>
                 <div className="flex flex-wrap items-center gap-4">
                   <button
                     className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                    onClick={() => setShowUploadDialog(true)}
+                    onClick={() => setShowTerrainDialog(true)}
                   >
                     Загрузить рельеф
+                  </button>
+                  <button
+                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    onClick={() => setShowMetadataDialog(true)}
+                  >
+                    Загрузить метаданные
                   </button>
                   <button
                     className="px-6 py-2 ml-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
@@ -1736,24 +2452,36 @@ export default function MoonMapPage() {
                     <span className="text-green-600 flex items-center">
                       <Check className="h-5 w-5 mr-1" />
                       Данные для{" "}
-                      {selectedArea === "shackleton"
-                        ? "Кратера Шеклтон"
-                        : selectedArea === "cabeus"
-                          ? "Кратера Кабеус"
-                          : selectedArea === "haworth"
-                            ? "Плато Хаворт"
-                            : "Горы Малаперт"}{" "}
+                      {selectedAreas.length > 1 
+                        ? "выбранных участков" 
+                        : selectedArea === "shackleton"
+                          ? "Кратера Шеклтон"
+                          : selectedArea === "cabeus"
+                            ? "Кратера Кабеус"
+                            : selectedArea === "haworth"
+                              ? "Плато Хаворт"
+                              : selectedArea === "malapert"
+                                ? "Горы Малаперт"
+                                : selectedArea}{" "}
                       загружены
                     </span>
 
-                    {uploadedAreas.length > 0 && (
+                    {metadataUploads.length > 0 && (
                       <div className="mt-2">
-                        <p className="text-sm font-medium text-gray-700">Загруженные участки:</p>
+                        <p className="text-sm font-medium text-gray-700">Метаданные:</p>
                         <ul className="mt-1 space-y-1">
-                          {uploadedAreas.map((area, index) => (
-                            <li key={index} className="text-sm text-green-600 flex items-center">
-                              <Check className="h-4 w-4 mr-1" />
-                              {area}
+                          {metadataUploads.map((metadata) => (
+                            <li key={metadata.id} className="text-sm text-green-600 flex items-center justify-between">
+                              <div className="flex items-center">
+                                <Check className="h-4 w-4 mr-1" />
+                                {metadata.name}
+                              </div>
+                              <button 
+                                className="text-blue-600 text-xs hover:underline"
+                                onClick={() => handleEditMetadata(metadata)}
+                              >
+                                Редактировать
+                              </button>
                             </li>
                           ))}
                         </ul>
@@ -1765,21 +2493,45 @@ export default function MoonMapPage() {
               <div className="bg-gray-100 rounded-lg p-4 flex flex-col justify-center items-center">
                 <div className="text-gray-500 mb-2">Прогресс загрузки данных</div>
                 <div className="w-full h-4 bg-gray-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-600 rounded-full w-full"></div>
+                  <div 
+                    className="h-full bg-blue-600 rounded-full transition-all duration-300 ease-in-out" 
+                    style={{ 
+                      width: currentUploadType === "terrain" 
+                        ? `${uploadProgress}%` 
+                        : terrainUploads.length > 0 
+                          ? `${terrainUploads[terrainUploads.length - 1].progress}%` 
+                          : "0%" 
+                    }}
+                  ></div>
                 </div>
-                <div className="mt-2 text-sm text-gray-600">Загружено: 100% (245 МБ)</div>
-                <div className="mt-4 text-sm text-gray-600">
-                  <div className="flex items-center mb-1">
-                    <div className="w-3 h-3 bg-blue-500 rounded-sm mr-2"></div>
-                    <span>Высотные данные</span>
+                <div className="mt-2 text-sm text-gray-600">
+                  {currentUploadType === "terrain" 
+                    ? `Загружено: ${uploadProgress}%`
+                    : terrainUploads.length > 0
+                      ? `Загружено: ${terrainUploads[terrainUploads.length - 1].progress}%`
+                      : "Загружено: 0%"}
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-2 w-full">
+                  <div className={`p-2 rounded text-center text-xs ${
+                    terrainUploads.length > 0 && terrainUploads[terrainUploads.length - 1].heightDataLoaded 
+                      ? "bg-green-100 text-green-800" 
+                      : "bg-gray-200 text-gray-500"
+                  }`}>
+                    Высота
                   </div>
-                  <div className="flex items-center mb-1">
-                    <div className="w-3 h-3 bg-green-500 rounded-sm mr-2"></div>
-                    <span>Спектральный анализ</span>
+                  <div className={`p-2 rounded text-center text-xs ${
+                    terrainUploads.length > 0 && terrainUploads[terrainUploads.length - 1].spectralDataLoaded 
+                      ? "bg-green-100 text-green-800" 
+                      : "bg-gray-200 text-gray-500"
+                  }`}>
+                    Спектр
                   </div>
-                  <div className="flex items-center">
-                    <div className="w-3 h-3 bg-purple-500 rounded-sm mr-2"></div>
-                    <span>Данные о льде</span>
+                  <div className={`p-2 rounded text-center text-xs ${
+                    terrainUploads.length > 0 && terrainUploads[terrainUploads.length - 1].iceDataLoaded 
+                      ? "bg-green-100 text-green-800" 
+                      : "bg-gray-200 text-gray-500"
+                  }`}>
+                    Лед
                   </div>
                 </div>
               </div>
@@ -1897,7 +2649,7 @@ export default function MoonMapPage() {
               <Button
                 variant="outline"
                 className="mr-2"
-                onClick={() =>
+                onClick={() => {
                   setAreaFilters({
                     sunlight: false,
                     iceProximity: false,
@@ -1905,8 +2657,18 @@ export default function MoonMapPage() {
                     lavaTubes: false,
                     spaceportDistance: false,
                     sufficientArea: false,
-                  })
-                }
+                  });
+                  // Сбрасываем состояние применения фильтров
+                  setFiltersApplied(false);
+                  
+                  // Если пользователь сбросил фильтры, то восстанавливаем доступность всех участков
+                  if (selectedAreas.length === 1 && selectedAreas[0] === "malapert") {
+                    // Если была выбрана только гора Малаперт (из-за фильтра), добавляем Шеклтон
+                    setSelectedAreas(["malapert", "shackleton"]);
+                    // Можно оставить выбранным Малаперт или переключиться на Шеклтон
+                    // setSelectedArea("shackleton");
+                  }
+                }}
               >
                 Сбросить фильтры
               </Button>
@@ -1950,14 +2712,30 @@ export default function MoonMapPage() {
                     value={selectedArea}
                     onChange={(e) => setSelectedArea(e.target.value)}
                   >
-                    <option value="shackleton">Кратер Шеклтон</option>
-                    <option value="cabeus">Кратер Кабеус</option>
-                    <option value="haworth">Плато Хаворт</option>
-                    <option value="malapert">Гора Малаперт</option>
-                    <option value="shoemaker">Кратер Шумейкер</option>
-                    <option value="loaded">Загруженный участок</option>
+                    {/* Если применен фильтр освещённости, показываем только гору Малаперт */}
+                    {filtersApplied && areaFilters.sunlight ? (
+                      <option value="malapert">Гора Малаперт</option>
+                    ) : (
+                      selectedAreas.map(area => (
+                        <option key={area} value={area}>
+                          {area === "shackleton" 
+                            ? "Кратер Шеклтон" 
+                            : area === "cabeus" 
+                              ? "Кратер Кабеус" 
+                              : area === "haworth" 
+                                ? "Плато Хаворт" 
+                                : area === "malapert" 
+                                  ? "Гора Малаперт" 
+                                  : area}
+                        </option>
+                      ))
+                    )}
                   </select>
-                  <p className="mt-1 text-sm text-gray-500">Выберите из списка наиболее пригодных зон Южного полюса</p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {filtersApplied && areaFilters.sunlight 
+                      ? "Доступна только гора Малаперт, так как применён фильтр максимальной освещенности" 
+                      : "Выберите из списка для просмотра одного из участков базы"}
+                  </p>
                 </div>
 
                 {/* Infrastructure Type */}
@@ -2184,7 +2962,7 @@ export default function MoonMapPage() {
 
                 {/* Parameters */}
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Площадь (м²)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Площадь застройки (м²)</label>
                   <Slider
                     defaultValue={[areaSize]}
                     max={5000}
@@ -2400,15 +3178,30 @@ export default function MoonMapPage() {
                           {/* Filtered areas overlay */}
                           {filtersApplied && (
                             <div className="absolute inset-0 grid grid-cols-20 grid-rows-20 z-20">
-                              {Array.from({ length: 400 }).map((_, index) => (
-                                <div
-                                  key={`filter-${index}`}
-                                  className={`${
-                                    // Randomly determine if area matches filters for demo purposes
-                                    Math.random() > 0.7 ? "bg-green-500 bg-opacity-20" : "bg-black bg-opacity-40"
-                                  }`}
-                                ></div>
-                              ))}
+                              {Array.from({ length: 400 }).map((_, index) => {
+                                // Определяем, является ли клетка частью горы Малаперт (примерно в правой верхней четверти)
+                                const col = index % 20;
+                                const row = Math.floor(index / 20);
+                                const isMalapertArea = areaFilters.sunlight && 
+                                  col >= 12 && col <= 19 && row >= 0 && row <= 7;
+                                
+                                return (
+                                  <div
+                                    key={`filter-${index}`}
+                                    className={`${
+                                      // Если фильтр освещенности активен, показываем только гору Малаперт
+                                      areaFilters.sunlight
+                                        ? isMalapertArea
+                                          ? "bg-yellow-400 bg-opacity-20" // Область горы Малаперт (с максимальной освещенностью)
+                                          : "bg-black bg-opacity-60"      // Остальные затемненные области
+                                        : // Для других фильтров используем случайную генерацию как раньше
+                                          Math.random() > 0.7 
+                                            ? "bg-green-500 bg-opacity-20" 
+                                            : "bg-black bg-opacity-40"
+                                    }`}
+                                  ></div>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
@@ -3093,6 +3886,7 @@ export default function MoonMapPage() {
         </div>
       </main>
 
+      {/* Render all dialogs */}
       {renderSideMenu()}
       {renderSaveDialog()}
       {renderLayerInfo()}
@@ -3100,48 +3894,9 @@ export default function MoonMapPage() {
       {renderLoadProjectDialog()}
       {renderObjectInfoDialog()}
       {renderUploadDialog()}
-      {/* Добавить сообщение о рисовании полигона, если активно */}
-      {drawingPolygon && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white p-3 rounded-md shadow-lg border-l-4 border-blue-500 text-blue-700 z-50">
-          Кликайте на карту, чтобы добавить точки. Замкните полигон, кликнув на первую точку.
-        </div>
-      )}
-
-      {/* Coordinate Info Popup */}
-      {showCoordinateInfo && clickedPointInfo && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-96 max-w-[90%]">
-            <h2 className="text-xl font-bold mb-4">Информация о точке</h2>
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="text-gray-600">Координаты:</div>
-                <div className="font-medium">
-                  X: {clickedPointInfo.x}, Y: {clickedPointInfo.y}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="text-gray-600">Высота:</div>
-                <div className="font-medium">{clickedPointInfo.height} м</div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="text-gray-600">Освещенность:</div>
-                <div className="font-medium">{clickedPointInfo.illumination}%</div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="text-gray-600">Уклон:</div>
-                <div className="font-medium">{clickedPointInfo.slope}°</div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="text-gray-600">Тип грунта:</div>
-                <div className="font-medium">{clickedPointInfo.soil}</div>
-              </div>
-            </div>
-            <div className="flex justify-end mt-4">
-              <Button onClick={() => setShowCoordinateInfo(false)}>Закрыть</Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {renderTerrainUploadDialog()}
+      {renderMetadataUploadDialog()}
+      {renderMetadataEditorDialog()}
     </div>
   )
 }
