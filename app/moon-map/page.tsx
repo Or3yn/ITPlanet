@@ -667,11 +667,13 @@ export default function MoonMapPage() {
       setDragStart({ x: e.clientX, y: e.clientY })
     }
 
-    // Update hovered cell
+    // Update hovered cell only if within map boundaries
     const rect = mapRef.current?.getBoundingClientRect()
     if (rect) {
       const x = Math.floor(((e.clientX - rect.left) / rect.width) * gridSize)
       const y = Math.floor(((e.clientY - rect.top) / rect.height) * gridSize)
+      
+      // Only set hovered cell if within map boundaries
       if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
         setHoveredCell({ x, y })
       } else {
@@ -3150,17 +3152,22 @@ export default function MoonMapPage() {
                           {/* Рендер текущего измерения */}
                           {renderCurrentMeasurement()}
 
-                          {/* Добавить отображение координат при наведении: */}
+                          {/* Add coordinate tooltip with proper positioning */}
                           {activeAnalysisTool === "coordinates" && hoveredCell && (
                             <div
-                              className="absolute bg-white px-2 py-1 rounded shadow-md text-xs z-50"
+                              className="absolute bg-white px-2 py-1 rounded shadow-md text-xs z-50 pointer-events-none"
                               style={{
-                                left: `${hoveredCell.x * (100 / gridSize)}%`,
-                                top: `${hoveredCell.y * (100 / gridSize)}%`,
-                                transform: "translate(10px, 10px)",
+                                left: `${(hoveredCell.x + 0.5) * (100 / gridSize)}%`,
+                                top: `${(hoveredCell.y + 0.5) * (100 / gridSize)}%`,
+                                transform: "translate(-50%, -50%)",
+                                minWidth: "100px",
+                                textAlign: "center",
+                                border: "1px solid #e5e7eb",
                               }}
                             >
-                              X: {hoveredCell.x.toFixed(2)}, Y: {hoveredCell.y.toFixed(2)}
+                              <div className="font-medium">Координаты:</div>
+                              <div>X: {hoveredCell.x.toFixed(2)}</div>
+                              <div>Y: {hoveredCell.y.toFixed(2)}</div>
                             </div>
                           )}
 
