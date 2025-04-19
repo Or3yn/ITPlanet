@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { AlertCircle, Check, X, Save, Edit, Trash2, ChevronRight, ChevronLeft, Eye, EyeOff } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useMoonMapStore } from '@/app/store/moon-map-store'
 
 // Определение типов объектов и их размеров
 interface ObjectSize {
@@ -129,80 +130,169 @@ const objectSizes: ObjectSizeMap = {
   mining: { width: 3, height: 3, safetyZone: 2 },
 }
 
+// Add interfaces for drag and measurement states
+interface DragState {
+  mapX: number
+  mapY: number
+  mouseX: number
+  mouseY: number
+}
+
+interface MeasurementState {
+  x: number
+  y: number
+}
+
+interface CellPosition {
+  x: number
+  y: number
+}
+
 export default function MoonMapPage() {
-  // Основные состояния
-  const [activeTab, setActiveTab] = useState("2d")
-  const [selectedArea, setSelectedArea] = useState("shackleton")
-  // Add new state for multi-selection
-  const [selectedAreas, setSelectedAreas] = useState<string[]>(["shackleton"])
-  const [selectedInfrastructure, setSelectedInfrastructure] = useState<InfrastructureKey | null>(null)
-  const [selectedHabitableModule, setSelectedHabitableModule] = useState<string | null>(null)
-  const [selectedTechObject, setSelectedTechObject] = useState<string | null>(null)
-  const [areaSize, setAreaSize] = useState(500)
-  const [safetyZone, setSafetyZone] = useState(100)
-  const [activeAnalysisTool, setActiveAnalysisTool] = useState<string | null>(null)
-  const [activeMapLayer, setActiveMapLayer] = useState("default")
-  const [showPlacementCriteria, setShowPlacementCriteria] = useState(false)
-  const [routeStart, setRouteStart] = useState<string | null>(null)
-  const [routeEnd, setRouteEnd] = useState<string | null>(null)
-  const [routes, setRoutes] = useState<Route[]>([])
-  const [placedObjects, setPlacedObjects] = useState<PlacedObject[]>([])
-  const [draggedObject, setDraggedObject] = useState<string | null>(null)
+  // Get state and actions from store
+  const {
+    mapPosition,
+    mapZoom,
+    gridSize,
+    cellSize,
+    isDragging,
+    dragStart,
+    hoveredCell,
+    activeAnalysisTool,
+    activeMapLayer,
+    restrictionEnabled,
+    restrictionShape,
+    ellipseWidth,
+    ellipseHeight,
+    polygonPoints,
+    drawingPolygon,
+    drawingRoute,
+    routeStartObject,
+    routeEndObject,
+    filtersApplied,
+    isMeasuring,
+    measurementStart,
+    measurements,
+    routes,
+    placedObjects,
+    selectedInfrastructure,
+    showCoordinateInfo,
+    clickedPointInfo,
+    showHelpDialog,
+    selectedLayerInfo,
+    restrictedArea,
+    showPlacementCriteria,
+    setMapPosition,
+    setMapZoom,
+    setIsDragging,
+    setDragStart,
+    setHoveredCell,
+    setActiveAnalysisTool,
+    setActiveMapLayer,
+    setRestrictionEnabled,
+    setRestrictionShape,
+    setEllipseWidth,
+    setEllipseHeight,
+    setPolygonPoints,
+    setDrawingPolygon,
+    setDrawingRoute,
+    setRouteStartObject,
+    setRouteEndObject,
+    setFiltersApplied,
+    setIsMeasuring,
+    setMeasurementStart,
+    setMeasurements,
+    setRoutes,
+    setPlacedObjects,
+    setSelectedInfrastructure,
+    setShowCoordinateInfo,
+    setClickedPointInfo,
+    setShowHelpDialog,
+    setSelectedLayerInfo,
+    setRestrictedArea,
+    setShowPlacementCriteria,
+  } = useMoonMapStore()
+
+  // Update state with proper types
+  const [dragStartState, setDragStartState] = useState<DragState | null>(null)
+  const [measurementStartState, setMeasurementStartState] = useState<MeasurementState | null>(null)
+  const [hoveredCellState, setHoveredCellState] = useState<CellPosition | null>(null)
+
+  // Map ref
+  const mapRef = useRef<HTMLDivElement>(null)
+
+  // Local state that doesn't need to be in the store
+  // Error handling
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [routeError, setRouteError] = useState<string | null>(null)
-  const [cellSize] = useState(10) // 10m² per cell
-  const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number } | null>(null)
-  // Update the initial state of sideMenuOpen
-  const [sideMenuOpen, setSideMenuOpen] = useState(true)
+
+  // Project management
   const [projectName, setProjectName] = useState("")
   const [savedProjects, setSavedProjects] = useState<SavedProject[]>([])
-  const [showSaveDialog, setShowSaveDialog] = useState(false)
-  const [measurements, setMeasurements] = useState<Measurement[]>([])
-  const [isMeasuring, setIsMeasuring] = useState(false)
-  const [measurementStart, setMeasurementStart] = useState<{ x: number; y: number } | null>(null)
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
-  const [showHelpDialog, setShowHelpDialog] = useState(false)
+  const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [showLoadProjectDialog, setShowLoadProjectDialog] = useState(false)
-  const [selectedObjectInfo, setSelectedObjectInfo] = useState<PlacedObject | null>(null)
-  const [isFullScreen, setIsFullScreen] = useState(false)
-  const [resourceBlockExpanded, setResourceBlockExpanded] = useState(false)
-  const [showResourceInfoModal, setShowResourceInfoModal] = useState(false)
-  const [filtersApplied, setFiltersApplied] = useState(false)
-  const [selectedLayerInfo, setSelectedLayerInfo] = useState<Layer | null>(null)
+
+  // Upload management
   const [showUploadDialog, setShowUploadDialog] = useState(false)
   const [uploadedAreas, setUploadedAreas] = useState<string[]>([])
-  
-  // Add new states for terrain and metadata uploads
   const [terrainUploads, setTerrainUploads] = useState<TerrainUpload[]>([])
+  const [metadataUploads, setMetadataUploads] = useState<Metadata[]>([])
+  const [showMetadataEditor, setShowMetadataEditor] = useState(false)
+  const [editingMetadata, setEditingMetadata] = useState<Metadata | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [terrainUploadName, setTerrainUploadName] = useState("")
   const [showTerrainDialog, setShowTerrainDialog] = useState(false)
   const [currentUploadType, setCurrentUploadType] = useState<"terrain" | "metadata" | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  
-  const [metadataUploads, setMetadataUploads] = useState<Metadata[]>([])
   const [metadataUploadName, setMetadataUploadName] = useState("")
   const [showMetadataDialog, setShowMetadataDialog] = useState(false)
-  const [showMetadataEditor, setShowMetadataEditor] = useState(false)
   const [selectedMetadata, setSelectedMetadata] = useState<Metadata | null>(null)
   const [editableMetadata, setEditableMetadata] = useState<string>("")
   const [selectedMetadataFile, setSelectedMetadataFile] = useState<File | null>(null)
 
-  // Add the necessary state variables at the top of the component
-  // Find the section with state variables and add these:
+  // UI state
+  const [sideMenuOpen, setSideMenuOpen] = useState(true)
+  const [isFullScreen, setIsFullScreen] = useState(false)
+  const [activeTab, setActiveTab] = useState("2d")
+  const [showResourceInfoModal, setShowResourceInfoModal] = useState(false)
+  const [resourceBlockExpanded, setResourceBlockExpanded] = useState(false)
+
+  // Area and object selection
+  const [selectedArea, setSelectedArea] = useState("shackleton")
+  const [selectedAreas, setSelectedAreas] = useState<string[]>(["shackleton"])
+  const [selectedHabitableModule, setSelectedHabitableModule] = useState<string | null>(null)
+  const [selectedTechObject, setSelectedTechObject] = useState<string | null>(null)
+  const [draggedObject, setDraggedObject] = useState<string | null>(null)
+  const [selectedObjectInfo, setSelectedObjectInfo] = useState<PlacedObject | null>(null)
+
+  // Area configuration
+  const [areaSize, setAreaSize] = useState(500)
+  const [safetyZone, setSafetyZone] = useState(100)
+  const [areaFilters, setAreaFilters] = useState({
+    sunlight: false,
+    iceProximity: false,
+    flatTerrain: false,
+    lavaTubes: false,
+    spaceportDistance: false,
+    sufficientArea: false,
+  })
+
+  // Route planning
+  const [routeStart, setRouteStart] = useState<string | null>(null)
+  const [routeEnd, setRouteEnd] = useState<string | null>(null)
+
+  // Resource management
   const [objectParams, setObjectParams] = useState({
     radiationProtection: false,
     iceProximity: false,
     sunlightAccess: false,
     flatSurface: false,
   })
-
   const [resourceSettings, setResourceSettings] = useState({
     spacePerPerson: 20,
     crewSize: 6,
   })
-
-  // Add resource status state
   const [resourceStatus, setResourceStatus] = useState({
     water: {
       current: 450,
@@ -241,50 +331,13 @@ export default function MoonMapPage() {
       recycling: 7.2,
     },
   })
-
-  // Add resource advice state
   const [resourceAdvice, setResourceAdvice] = useState([
     "Добавьте аккумуляторы для увеличения автономности до 14 дней",
     "Рекомендуется установить дополнительный модуль переработки отходов",
     "Жилая площадь достаточна для текущего экипажа (6 человек)",
   ])
 
-  // Добавить после объявления других состояний, примерно в строке 100
-  const [showCoordinateInfo, setShowCoordinateInfo] = useState(false)
-  const [clickedPointInfo, setClickedPointInfo] = useState<{
-    x: number
-    y: number
-    height: number
-    illumination: number
-    slope: number
-    soil: string
-  } | null>(null)
-
-  // Добавить новые состояния после объявления других состояний, примерно в строке 110
-  const [restrictionEnabled, setRestrictionEnabled] = useState(false)
-  const [restrictionShape, setRestrictionShape] = useState<"ellipse" | "polygon">("ellipse")
-  const [ellipseWidth, setEllipseWidth] = useState(120)
-  const [ellipseHeight, setEllipseHeight] = useState(60)
-  const [drawingPolygon, setDrawingPolygon] = useState(false)
-  const [polygonPoints, setPolygonPoints] = useState<{ x: number; y: number }[]>([])
-  const [restrictedArea, setRestrictedArea] = useState(0)
-
-  // Рассчитываем размер сетки на основе площади
-  const gridSize = Math.ceil(Math.sqrt(areaSize / cellSize))
-
-  // Ссылки на DOM элементы
-  const mapRef = useRef<HTMLDivElement>(null)
-
-  // Состояния для навигации по карте
-  const [mapZoom, setMapZoom] = useState(1)
-  const [mapPosition, setMapPosition] = useState({ x: 0, y: 0 })
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
-  const [drawingRoute, setDrawingRoute] = useState(false)
-  const [routeStartObject, setRouteStartObject] = useState<PlacedObject | null>(null)
-  const [routeEndObject, setRouteEndObject] = useState<PlacedObject | null>(null)
-
-  // Слои карты
+  // Layer management
   const [layers, setLayers] = useState<Layer[]>([
     {
       id: "nomenclature",
@@ -353,16 +406,6 @@ export default function MoonMapPage() {
       enabled: false,
     },
   ])
-
-  // Фильтры для выбора зоны по условиям
-  const [areaFilters, setAreaFilters] = useState({
-    sunlight: false,
-    iceProximity: false,
-    flatTerrain: false,
-    lavaTubes: false,
-    spaceportDistance: false,
-    sufficientArea: false,
-  })
 
   const objectNames: StringMap = {
     "residential-ind": "Жилой модуль (инд.)",
@@ -531,26 +574,24 @@ export default function MoonMapPage() {
   const handlePlaceObject = (x: number, y: number) => {
     if (!selectedInfrastructure) return
 
-    const { width, height, safetyZone } = objectSizes[selectedInfrastructure] || { width: 3, height: 3, safetyZone: 1 }
+    const size = objectSizes[selectedInfrastructure as InfrastructureKey]
+    if (!size) return
 
+    const { width, height, safetyZone } = size
     if (canPlaceObject(x, y, width, height, safetyZone)) {
       const newObject: PlacedObject = {
         id: Date.now(),
         type: selectedInfrastructure,
-        name: objectNames[selectedInfrastructure] || "Неизвестный объект",
+        name: `${selectedInfrastructure}-${Date.now()}`,
         x,
         y,
         width,
         height,
         safetyZone,
-        color: objectColors[selectedInfrastructure] || "bg-gray-500",
+        color: "blue",
       }
 
       setPlacedObjects([...placedObjects, newObject])
-      setErrorMessage(null)
-    } else {
-      setErrorMessage("Невозможно разместить объект в этой позиции. Проверьте ограничения и безопасные зоны.")
-      setTimeout(() => setErrorMessage(null), 3000)
     }
   }
 
@@ -635,85 +676,119 @@ export default function MoonMapPage() {
   }
 
   // Map navigation handlers
-  const handleMapMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 0) {
-      // Left mouse button
-      if (activeAnalysisTool === "ruler" && !isMeasuring) {
-        // Start measuring
-        setIsMeasuring(true)
-        const rect = mapRef.current?.getBoundingClientRect()
-        if (rect) {
-          const x = Math.floor(((e.clientX - rect.left) / rect.width) * gridSize)
-          const y = Math.floor(((e.clientY - rect.top) / rect.height) * gridSize)
-          setMeasurementStart({ x, y })
-        }
-      } else if (!isMeasuring) {
-        // Start dragging
-        setIsDragging(true)
-        setDragStart({ x: e.clientX, y: e.clientY })
-      }
-    }
+  const handleMapMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!mapRef.current) return
+
+    const rect = mapRef.current.getBoundingClientRect()
+    const mouseX = e.clientX - rect.left
+    const mouseY = e.clientY - rect.top
+
+    setDragStartState({
+      mapX: mapPosition.x,
+      mapY: mapPosition.y,
+      mouseX,
+      mouseY
+    })
+    setIsDragging(true)
   }
 
-  // Обновить функцию handleMapMouseMove
-  const handleMapMouseMove = (e: React.MouseEvent) => {
-    if (isDragging) {
-      const dx = (e.clientX - dragStart.x) / mapZoom
-      const dy = (e.clientY - dragStart.y) / mapZoom
-      setMapPosition({
-        x: mapPosition.x + dx,
-        y: mapPosition.y + dy,
-      })
-      setDragStart({ x: e.clientX, y: e.clientY })
-    }
+  // Add new state for hover timer
+  const [hoverTimer, setHoverTimer] = useState<NodeJS.Timeout | null>(null)
+  const [showPreview, setShowPreview] = useState(false)
 
-    // Update hovered cell only if within map boundaries
-    const rect = mapRef.current?.getBoundingClientRect()
-    if (rect) {
-      const x = Math.floor(((e.clientX - rect.left) / rect.width) * gridSize)
-      const y = Math.floor(((e.clientY - rect.top) / rect.height) * gridSize)
+  // Update handleMapMouseMove with debounce
+  const handleMapMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!mapRef.current) return
+
+    const rect = mapRef.current.getBoundingClientRect()
+    const mouseX = e.clientX - rect.left
+    const mouseY = e.clientY - rect.top
+
+    // Calculate cell coordinates
+    const cellX = Math.floor((mouseX - mapPosition.x) / (cellSize * mapZoom))
+    const cellY = Math.floor((mouseY - mapPosition.y) / (cellSize * mapZoom))
+
+    // Clear existing timer if mouse moves to a new cell
+    if (hoveredCell?.x !== cellX || hoveredCell?.y !== cellY) {
+      if (hoverTimer) {
+        clearTimeout(hoverTimer)
+      }
+      setShowPreview(false)
       
-      // Only set hovered cell if within map boundaries
-      if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
-        setHoveredCell({ x, y })
-      } else {
-        setHoveredCell(null)
-      }
+      // Set new timer for the current cell
+      const timer = setTimeout(() => {
+        setHoveredCell({ x: cellX, y: cellY })
+        setShowPreview(true)
+      }, 500) // 500ms delay
+      
+      setHoverTimer(timer)
+    }
+
+    if (isDragging && dragStartState) {
+      const deltaX = mouseX - dragStartState.mouseX
+      const deltaY = mouseY - dragStartState.mouseY
+
+      setMapPosition({
+        x: dragStartState.mapX + deltaX,
+        y: dragStartState.mapY + deltaY
+      })
     }
   }
 
-  const handleMapMouseUp = (e: React.MouseEvent) => {
-    if (isMeasuring && measurementStart) {
-      // Finish measuring
-      const rect = mapRef.current?.getBoundingClientRect()
-      if (rect) {
-        const endX = Math.floor(((e.clientX - rect.left) / rect.width) * gridSize)
-        const endY = Math.floor(((e.clientY - rect.top) / rect.height) * gridSize)
+  const handleMapMouseUp = () => {
+    setIsDragging(false)
+    setDragStartState(null)
+  }
 
-        // Calculate distance in meters (each cell is 10m²)
-        const distance = Math.sqrt(
-          Math.pow((endX - measurementStart.x) * Math.sqrt(cellSize), 2) +
-            Math.pow((endY - measurementStart.y) * Math.sqrt(cellSize), 2),
-        )
+  const handleMapWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    const delta = e.deltaY > 0 ? -0.1 : 0.1
+    setMapZoom(Math.max(0.1, Math.min(3, mapZoom + delta)))
+  }
 
-        // Add measurement
-        const newMeasurement: Measurement = {
-          id: Date.now(),
-          startX: measurementStart.x,
-          startY: measurementStart.y,
-          endX,
-          endY,
-          distance,
-          color: "blue",
-        }
+  const handleObjectDragStart = (objectType: string) => {
+    setDraggedObject(objectType)
+  }
 
-        setMeasurements([...measurements, newMeasurement])
-        setIsMeasuring(false)
-        setMeasurementStart(null)
-      }
+  const handleObjectDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!mapRef.current || !draggedObject) return
+
+    const rect = mapRef.current.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+
+    const newObject: PlacedObject = {
+      id: Date.now().toString(),
+      type: draggedObject,
+      position: { x, y },
+      rotation: 0,
+      scale: 1,
     }
 
-    setIsDragging(false)
+    setPlacedObjects([...placedObjects, newObject])
+    setDraggedObject(null)
+  }
+
+  const handleObjectClick = (object: PlacedObject) => {
+    setSelectedObjectInfo(object)
+  }
+
+  const handleRouteStart = (objectId: string) => {
+    setRouteStartObject(objectId)
+    setDrawingRoute(true)
+  }
+
+  const handleRouteEnd = (objectId: string) => {
+    if (routeStartObject && routeStartObject !== objectId) {
+      const newRoute = {
+        id: Date.now().toString(),
+        start: routeStartObject,
+        end: objectId,
+      }
+      setRoutes([...routes, newRoute])
+    }
+    setRouteStartObject(null)
+    setDrawingRoute(false)
   }
 
   // Добавить функцию для обработки клика при рисовании полигона после handleMapClick
@@ -744,28 +819,30 @@ export default function MoonMapPage() {
   }
 
   // Обновить handleMapClick для поддержки рисования полигона
-  const handleMapClick = (e: React.MouseEvent) => {
-    if (drawingPolygon) {
-      handlePolygonClick(e)
-      return
-    }
+  const handleMapClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!mapRef.current) return
 
-    if (activeAnalysisTool === "coordinates") {
-      const rect = mapRef.current?.getBoundingClientRect()
-      if (rect) {
-        const x = ((e.clientX - rect.left) / rect.width) * gridSize
-        const y = ((e.clientY - rect.top) / rect.height) * gridSize
+    const rect = mapRef.current.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
 
-        // Генерируем случайные данные для демонстрации
-        setClickedPointInfo({
-          x: Number.parseFloat(x.toFixed(2)),
-          y: Number.parseFloat(y.toFixed(2)),
-          height: Math.floor(Math.random() * 500), // Случайная высота от 0 до 500 м
-          illumination: Math.floor(Math.random() * 100), // Случайная освещенность от 0 до 100%
-          slope: Number.parseFloat((Math.random() * 7).toFixed(1)), // Случайный уклон от 0 до 7 градусов
-          soil: ["пылевой", "каменистый", "реголитовый", "песчаный"][Math.floor(Math.random() * 4)], // Случайный тип грунта
-        })
-        setShowCoordinateInfo(true)
+    if (activeAnalysisTool === "measure") {
+      if (!isMeasuring) {
+        setMeasurementStartState({ x, y })
+        setIsMeasuring(true)
+      } else {
+        const distance = Math.sqrt(
+          Math.pow(x - measurementStartState.x, 2) + Math.pow(y - measurementStartState.y, 2)
+        )
+        setMeasurements([...measurements, { start: measurementStartState, end: { x, y }, distance }])
+        setIsMeasuring(false)
+      }
+    } else if (activeAnalysisTool === "polygon") {
+      if (!drawingPolygon) {
+        setPolygonPoints([{ x, y }])
+        setDrawingPolygon(true)
+      } else {
+        setPolygonPoints([...polygonPoints, { x, y }])
       }
     }
   }
@@ -779,7 +856,7 @@ export default function MoonMapPage() {
   }
 
   // Route drawing handlers
-  const handleObjectClick = (obj: PlacedObject) => {
+  const handleRouteObjectClick = (obj: PlacedObject) => {
     if (drawingRoute) {
       if (!routeStartObject) {
         setRouteStartObject(obj)
@@ -816,31 +893,23 @@ export default function MoonMapPage() {
 
   // Обработчик создания маршрута
   const handleCreateRoute = () => {
-    if (routeStart && routeEnd) {
-      // Find the objects
+    if (!routeStart || !routeEnd) {
+      setRouteError("Выберите начальную и конечную точки маршрута")
+      return
+    }
+
       const startObj = placedObjects.find((obj) => obj.name === routeStart)
       const endObj = placedObjects.find((obj) => obj.name === routeEnd)
 
       if (!startObj || !endObj) {
-        setRouteError("Не удалось найти выбранные объекты")
-        setTimeout(() => setRouteError(null), 5000)
+      setRouteError("Не удалось найти объекты маршрута")
         return
       }
 
-      // Simulate route validation
-      if (Math.random() > 0.8) {
-        setRouteError("Непроходимая зона: маршрут пересекает участок с крутым уклоном")
-        setTimeout(() => setRouteError(null), 5000)
-        return
-      }
-
-      // Calculate distance
       const distance = Math.sqrt(
         Math.pow((endObj.x - startObj.x) * Math.sqrt(cellSize), 2) +
           Math.pow((endObj.y - startObj.y) * Math.sqrt(cellSize), 2),
-      ).toFixed(0)
-
-      const time = Math.ceil(Number.parseInt(distance) / 80) // Assuming 80m per minute walking speed
+    )
 
       const newRoute: Route = {
         id: Date.now(),
@@ -848,15 +917,14 @@ export default function MoonMapPage() {
         end: routeEnd,
         startObj,
         endObj,
-        distance: Number.parseInt(distance),
-        time: time,
+      distance,
+      time: distance / 5, // Assuming 5 m/s walking speed
       }
 
       setRoutes([...routes, newRoute])
       setRouteStart(null)
       setRouteEnd(null)
       setRouteError(null)
-    }
   }
 
   // Обработчик экспорта данных
@@ -907,14 +975,7 @@ export default function MoonMapPage() {
 
   // Обработчик удаления объекта
   const handleDeleteObject = (objectId: number) => {
-    // Remove the object
     setPlacedObjects(placedObjects.filter((obj) => obj.id !== objectId))
-
-    // Remove any routes that use this object
-    const objToRemove = placedObjects.find((obj) => obj.id === objectId)
-    if (objToRemove) {
-      setRoutes(routes.filter((route) => route.start !== objToRemove.name && route.end !== objToRemove.name))
-    }
   }
 
   // Обработчик удаления измерения
@@ -924,42 +985,33 @@ export default function MoonMapPage() {
 
   // Обработчик изменения цвета измерения
   const handleChangeMeasurementColor = (measurementId: number, color: string) => {
-    setMeasurements(measurements.map((m) => (m.id === measurementId ? { ...m, color } : m)))
+    setMeasurements(
+      measurements.map((m) => (m.id === measurementId ? { ...m, color } : m)),
+    )
   }
 
   // Обработчик сохранения проекта
   const handleSaveProject = () => {
-    if (!projectName.trim()) {
-      alert("Пожалуйста, введите имя проекта")
+    if (!projectName) {
+      setErrorMessage("Введите название проекта")
       return
     }
 
-    // Create a new project
     const newProject: SavedProject = {
-      id: currentProjectId || `project_${Date.now()}`,
+      id: Date.now().toString(),
       name: projectName,
       date: new Date().toLocaleDateString(),
       objects: placedObjects,
-      routes: routes,
-      measurements: measurements,
-      areaSize: areaSize,
-      safetyZone: safetyZone,
+      routes,
+      measurements,
+      areaSize,
+      safetyZone,
     }
 
-    // Update or add to saved projects
-    const updatedProjects = currentProjectId
-      ? savedProjects.map((p) => (p.id === currentProjectId ? newProject : p))
-      : [...savedProjects, newProject]
-
-    setSavedProjects(updatedProjects)
-    setCurrentProjectId(newProject.id)
-
-    // Save to localStorage
-    localStorage.setItem("lunarBaseProjects", JSON.stringify(updatedProjects))
-
+    setSavedProjects([...savedProjects, newProject])
     setShowSaveDialog(false)
-    setErrorMessage("✅ Проект успешно сохранен!")
-    setTimeout(() => setErrorMessage(null), 3000)
+    setProjectName("")
+    setErrorMessage(null)
   }
 
   // Обработчик загрузки проекта
@@ -971,17 +1023,14 @@ export default function MoonMapPage() {
       setMeasurements(project.measurements)
       setAreaSize(project.areaSize)
       setSafetyZone(project.safetyZone)
-      setCurrentProjectId(project.id)
-      setProjectName(project.name)
-
-      setErrorMessage("✅ Проект успешно загружен!")
-      setTimeout(() => setErrorMessage(null), 3000)
+      setCurrentProjectId(projectId)
+      setShowLoadProjectDialog(false)
     }
   }
 
   // Обработчик переключения слоя
   const handleToggleLayer = (layerId: string) => {
-    setLayers(layers.map((layer) => (layer.id === layerId ? { ...layer, enabled: !layer.enabled } : layer)))
+    setActiveMapLayer(layerId)
   }
 
   // Обработчик выбора слоя для просмотра информации
@@ -991,22 +1040,12 @@ export default function MoonMapPage() {
 
   // Функция для переключения в полноэкранный режим
   const toggleFullScreen = () => {
-    const mapElement = mapRef.current
-
-    if (!mapElement) return
-
     if (!document.fullscreenElement) {
-      mapElement.requestFullscreen().then(() => {
+      document.documentElement.requestFullscreen()
         setIsFullScreen(true)
-        setSideMenuOpen(true) // Open side menu when entering full screen
-      })
     } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().then(() => {
+      document.exitFullscreen()
           setIsFullScreen(false)
-          setSideMenuOpen(false) // Close side menu when exiting full screen
-        })
-      }
     }
   }
 
@@ -1077,8 +1116,8 @@ export default function MoonMapPage() {
                 handlePlaceObject(x, y)
               }
             }}
-            onMouseEnter={() => setHoveredCell({ x, y })}
-            onMouseLeave={() => setHoveredCell(null)}
+            onMouseEnter={() => setHoveredCellState({ x, y })}
+            onMouseLeave={() => setHoveredCellState(null)}
           />,
         )
       }
@@ -1115,7 +1154,7 @@ export default function MoonMapPage() {
                 gridRow: `${y + 1} / span 1`,
                 zIndex: 5,
               }}
-            />,
+            />
           )
         }
       }
@@ -1132,9 +1171,7 @@ export default function MoonMapPage() {
             gridRow: `${obj.y + 1} / span ${obj.height}`,
             zIndex: 10,
           }}
-          onClick={() => {
-            handleObjectClick(obj)
-          }}
+          onClick={() => handleRouteObjectClick(obj)}
           title={obj.name}
         >
           {/* И */}
@@ -1155,25 +1192,36 @@ export default function MoonMapPage() {
             {obj.type === "solar" && "☀️"}
             {obj.type === "mining" && "⛏️"}
           </div>
-        </div>,
+        </div>
       )
     })
 
     return elements
   }
 
-  // Рендер предпросмотра размещения
+  // Update renderPlacementPreview with smooth transitions
   const renderPlacementPreview = () => {
-    if (!hoveredCell || !selectedInfrastructure) return null
+    if (!hoveredCell || !selectedInfrastructure || !showPreview) return null
 
-    const { width, height, safetyZone } = objectSizes[selectedInfrastructure] || { width: 3, height: 3, safetyZone: 1 }
+    const size = objectSizes[selectedInfrastructure as InfrastructureKey]
+    if (!size) return null
+
+    const { width, height, safetyZone } = size
     const { x, y } = hoveredCell
 
     const canPlace = canPlaceObject(x, y, width, height, safetyZone)
 
     return (
       <div
-        className={`${canPlace ? "bg-green-300 bg-opacity-50" : "bg-red-300 bg-opacity-50"} rounded-md border-2 ${canPlace ? "border-green-500" : "border-red-500"}`}
+        className={`
+          ${canPlace ? "bg-green-300 bg-opacity-50" : "bg-red-300 bg-opacity-50"}
+          rounded-md border-2
+          ${canPlace ? "border-green-500" : "border-red-500"}
+          transition-all duration-200 ease-in-out
+          opacity-0 scale-95
+          data-[show=true]:opacity-100 data-[show=true]:scale-100
+        `}
+        data-show={showPreview}
         style={{
           gridColumn: `${x + 1} / span ${width}`,
           gridRow: `${y + 1} / span ${height}`,
@@ -1248,15 +1296,15 @@ export default function MoonMapPage() {
 
   // Рендер текущего измерения
   const renderCurrentMeasurement = () => {
-    if (!isMeasuring || !measurementStart || !hoveredCell) return null
+    if (!isMeasuring || !measurementStartState || !hoveredCellState) return null
 
     return (
       <svg className="absolute inset-0 w-full h-full z-20 pointer-events-none">
         <line
-          x1={`${(measurementStart.x + 0.5) * (100 / gridSize)}%`}
-          y1={`${(measurementStart.y + 0.5) * (100 / gridSize)}%`}
-          x2={`${(hoveredCell.x + 0.5) * (100 / gridSize)}%`}
-          y2={`${(hoveredCell.y + 0.5) * (100 / gridSize)}%`}
+          x1={`${(measurementStartState.x + 0.5) * (100 / gridSize)}%`}
+          y1={`${(measurementStartState.y + 0.5) * (100 / gridSize)}%`}
+          x2={`${(hoveredCellState.x + 0.5) * (100 / gridSize)}%`}
+          y2={`${(hoveredCellState.y + 0.5) * (100 / gridSize)}%`}
           stroke="blue"
           strokeWidth="2"
           strokeDasharray="5,5"
@@ -2258,6 +2306,15 @@ export default function MoonMapPage() {
     localStorage.setItem('moonMap.metadataUploads', JSON.stringify(metadataUploads));
   }, [metadataUploads]);
 
+  // Add cleanup for hover timer in useEffect
+  useEffect(() => {
+    return () => {
+      if (hoverTimer) {
+        clearTimeout(hoverTimer)
+      }
+    }
+  }, [hoverTimer])
+
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
@@ -3140,7 +3197,7 @@ export default function MoonMapPage() {
                           {/* Рендер размещенных объектов */}
                           {renderPlacedObjects()}
 
-                          {/* Рендер предпросмотра размещения */}
+                          {/* Update renderPlacementPreview with smooth transitions */}
                           {renderPlacementPreview()}
 
                           {/* Рендер маршрутов */}
