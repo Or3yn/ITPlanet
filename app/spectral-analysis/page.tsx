@@ -1,4 +1,5 @@
 import Link from "next/link"
+import ProcessedImagesGallery from "../components/processed-images-gallery"
 
 export default function SpectralAnalysisPage() {
   return (
@@ -32,6 +33,12 @@ export default function SpectralAnalysisPage() {
       <main className="py-12 px-6">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-3xl font-bold mb-8 text-center text-blue-600">Спектральный анализ поверхности Луны</h1>
+
+          {/* Section for Processed Images */}
+          <section className="mb-12 bg-white rounded-lg shadow-md p-8">
+            <h2 className="text-2xl font-bold mb-6">🔹 Обработанные изображения</h2> 
+            <ProcessedImagesGallery />
+          </section>
 
           {/* Section 1: Introduction */}
           <section className="mb-12 bg-white rounded-lg shadow-md p-8">
