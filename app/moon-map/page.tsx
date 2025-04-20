@@ -69,7 +69,9 @@ interface Layer {
   description: string
   enabled: boolean
   imagePath: string
+  rawImagePath: string
   type: 'height' | 'spectral' | 'slope' | 'ice' | 'shadows'
+  isActive: boolean
 }
 
 // Add interfaces for terrain and metadata
@@ -327,6 +329,32 @@ const ImageViewerModal = ({
   );
 };
 
+// В начале файла, после импортов
+interface Point {
+  x: number;
+  y: number;
+}
+
+// Вспомогательные функции
+const isPointInPolygon = (point: Point, polygon: Point[]): boolean => {
+  if (polygon.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].x, yi = polygon[i].y;
+    const xj = polygon[j].x, yj = polygon[j].y;
+    const intersect = yi > point.y !== yj > point.y && 
+      point.x < ((xj - xi) * (point.y - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+};
+
+const isPointInEllipse = (point: Point, center: Point, radiusX: number, radiusY: number): boolean => {
+  const normalizedX = (point.x - center.x) / radiusX;
+  const normalizedY = (point.y - center.y) / radiusY;
+  return normalizedX * normalizedX + normalizedY * normalizedY <= 1;
+};
+
 export default function MoonMapPage() {
   // Get state and actions from store
   const {
@@ -523,40 +551,50 @@ export default function MoonMapPage() {
       name: "Рельеф местности",
       description: "Отображает высоту поверхности Луны. Темные области - низменности, светлые - возвышенности.",
       enabled: true,
-      imagePath: "/images/layers/height.png",
-      type: "height"
+      imagePath: "/public/images/layers/height.png",
+      rawImagePath: "/scripts/output/images/height.png",
+      type: "height",
+      isActive: true,
     },
     {
       id: "spectral",
       name: "Спектральный анализ",
       description: "Показывает минералогический состав поверхности. Разные цвета соответствуют разным минералам.",
       enabled: false,
-      imagePath: "/images/layers/spectral.png",
-      type: "spectral"
+      imagePath: "/public/images/layers/spectral.png",
+      rawImagePath: "/scripts/output/images/spectral.png",
+      type: "spectral",
+      isActive: false,
     },
     {
       id: "slope",
       name: "Наклон поверхности",
       description: "Отображает угол наклона поверхности. Полезно для определения пригодности участка для строительства.",
       enabled: false,
-      imagePath: "/images/layers/slope.png",
-      type: "slope"
+      imagePath: "/public/images/layers/slope.png",
+      rawImagePath: "/scripts/output/images/slope.png",
+      type: "slope",
+      isActive: false,
     },
     {
       id: "ice",
       name: "Ледяные отложения",
       description: "Показывает предполагаемые места скопления водяного льда в кратерах.",
       enabled: false,
-      imagePath: "/images/layers/ice.png",
-      type: "ice"
+      imagePath: "/public/images/layers/ice.png",
+      rawImagePath: "/scripts/output/images/ice.png",
+      type: "ice",
+      isActive: false,
     },
     {
       id: "shadows",
       name: "Тени",
       description: "Показывает среднюю освещенность поверхности.",
       enabled: false,
-      imagePath: "/images/layers/shadows.png",
-      type: "shadows"
+      imagePath: "/public/images/layers/shadows.png",
+      rawImagePath: "/scripts/output/images/shadows.png",
+      type: "shadows",
+      isActive: false,
     }
   ])
 
@@ -637,84 +675,64 @@ export default function MoonMapPage() {
 
   const canPlaceObject = (x: number, y: number, width: number, height: number, safetyZone: number): boolean => {
     // Проверка выхода за границы сетки
-    if (x < 0 || y < 0 || x + width > gridSize || y + height > gridSize) {
+    if (x < 0 || y < 0 || x + width > GRID_SIZE || y + height > GRID_SIZE) {
+      setErrorMessage("❌ Объект выходит за границы карты")
+      setTimeout(() => setErrorMessage(null), 3000)
       return false
     }
 
     // Проверка, находится ли объект внутри активной зоны, если ограничение включено
     if (restrictionEnabled) {
-      // Проверяем все углы объекта
-      const corners = [
-        { x, y },
-        { x: x + width, y },
-        { x, y: y + height },
-        { x: x + width, y: y + height },
-      ]
+      // Проверяем все тайлы, которые занимает объект
+      for (let dx = 0; dx < width; dx++) {
+        for (let dy = 0; dy < height; dy++) {
+          const checkX = x + dx
+          const checkY = y + dy
+          
+          // Для эллипса
+          if (restrictionShape === "ellipse") {
+            const centerX = GRID_SIZE / 2
+            const centerY = GRID_SIZE / 2
+            const radiusX = ellipseWidth / (2 * Math.sqrt(cellSize))
+            const radiusY = ellipseHeight / (2 * Math.sqrt(cellSize))
 
-      // Для эллипса
-      if (restrictionShape === "ellipse") {
-        const centerX = gridSize / 2
-        const centerY = gridSize / 2
-        const radiusX = ellipseWidth / (2 * Math.sqrt(cellSize))
-        const radiusY = ellipseHeight / (2 * Math.sqrt(cellSize))
-
-        // Проверяем, находятся ли все углы внутри эллипса
-        const allCornersInside = corners.every((corner) => {
-          const normalizedX = (corner.x - centerX) / radiusX
-          const normalizedY = (corner.y - centerY) / radiusY
-          return normalizedX * normalizedX + normalizedY * normalizedY <= 1
-        })
-
-        if (!allCornersInside) {
-          setErrorMessage("❌ Объект должен быть полностью внутри активной зоны")
-          setTimeout(() => setErrorMessage(null), 3000)
-          return false
-        }
-      }
-
-      // Для полигона
-      if (restrictionShape === "polygon" && polygonPoints.length > 2) {
-        // Функция для проверки, находится ли точка внутри полигона
-        const isPointInPolygon = (point: { x: number; y: number }, polygon: { x: number; y: number }[]) => {
-          let inside = false
-          for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-            const xi = polygon[i].x,
-              yi = polygon[i].y
-            const xj = polygon[j].x,
-              yj = polygon[j].y
-
-            const intersect = yi > point.y !== yj > point.y && point.x < ((xj - xi) * (point.y - yi)) / (yj - yi) + xi
-            if (intersect) inside = !inside
+            const normalizedX = (checkX - centerX) / radiusX
+            const normalizedY = (checkY - centerY) / radiusY
+            if (normalizedX * normalizedX + normalizedY * normalizedY > 1) {
+              setErrorMessage("❌ Объект должен быть полностью внутри активной зоны")
+              setTimeout(() => setErrorMessage(null), 3000)
+              return false
+            }
           }
-          return inside
-        }
 
-        // Проверяем, находятся ли все углы внутри полигона
-        const allCornersInside = corners.every((corner) => isPointInPolygon(corner, polygonPoints))
-
-        if (!allCornersInside) {
-          setErrorMessage("❌ Объект должен быть полностью внутри активной зоны")
-          setTimeout(() => setErrorMessage(null), 3000)
-          return false
+          // Для полигона
+          if (restrictionShape === "polygon" && polygonPoints.length > 2) {
+            if (!isPointInPolygon({ x: checkX, y: checkY }, polygonPoints)) {
+              setErrorMessage("❌ Объект должен быть полностью внутри активной зоны")
+              setTimeout(() => setErrorMessage(null), 3000)
+              return false
+            }
+          }
         }
       }
     }
 
     // Проверка пересечения с другими объектами и их зонами безопасности
     for (const obj of placedObjects) {
-      // Проверка пересечения самих объектов
-      if (x < obj.x + obj.width && x + width > obj.x && y < obj.y + obj.height && y + height > obj.y) {
-        return false
-      }
+      // Проверяем каждый тайл объекта и его зоны безопасности
+      const objStartX = obj.x - obj.safetyZone
+      const objStartY = obj.y - obj.safetyZone
+      const objEndX = obj.x + obj.width + obj.safetyZone
+      const objEndY = obj.y + obj.height + obj.safetyZone
 
       // Проверка пересечения с зоной безопасности
       if (
-        x < obj.x + obj.width + obj.safetyZone &&
-        x + width > obj.x - obj.safetyZone &&
-        y < obj.y + obj.height + obj.safetyZone &&
-        y + height > obj.y - obj.safetyZone
+        x < objEndX &&
+        x + width > objStartX &&
+        y < objEndY &&
+        y + height > objStartY
       ) {
-        setErrorMessage(`❌ Объект слишком близко к ${obj.name}`)
+        setErrorMessage(`❌ Объект слишком близко к ${objectNames[obj.type as InfrastructureKey] || obj.name}`)
         setTimeout(() => setErrorMessage(null), 3000)
         return false
       }
@@ -731,20 +749,24 @@ export default function MoonMapPage() {
     if (!size) return
 
     const { width, height, safetyZone } = size
+    
+    // Проверяем возможность размещения
     if (canPlaceObject(x, y, width, height, safetyZone)) {
       const newObject: PlacedObject = {
         id: Date.now().toString(),
         type: selectedInfrastructure,
-        name: `${selectedInfrastructure}-${Date.now()}`,
+        name: `${objectNames[selectedInfrastructure as InfrastructureKey]}-${Date.now().toString().slice(-4)}`,
         x,
         y,
         width,
         height,
         safetyZone,
-        color: "blue",
+        color: objectColors[selectedInfrastructure as InfrastructureKey] || "bg-gray-500",
       }
 
       setPlacedObjects([...placedObjects, newObject])
+      setErrorMessage("✅ Объект успешно размещен")
+      setTimeout(() => setErrorMessage(null), 3000)
     }
   }
 
@@ -764,8 +786,8 @@ export default function MoonMapPage() {
       let placed = false
 
       // Перебираем все возможные позиции на сетке
-      for (let y = 0; y < gridSize && !placed; y++) {
-        for (let x = 0; x < gridSize && !placed; x++) {
+      for (let y = 0; y < GRID_SIZE && !placed; y++) {
+        for (let x = 0; x < GRID_SIZE && !placed; x++) {
           // Проверяем, можно ли разместить объект в этой позиции
           if (canPlaceObjectWithExisting(x, y, obj.width, obj.height, obj.safetyZone, newPositions)) {
             // Добавляем объект в новые позиции
@@ -803,7 +825,7 @@ export default function MoonMapPage() {
     existingObjects: PlacedObject[],
   ): boolean => {
     // Проверка выхода за границы сетки
-    if (x < 0 || y < 0 || x + width > gridSize || y + height > gridSize) {
+    if (x < 0 || y < 0 || x + width > GRID_SIZE || y + height > GRID_SIZE) {
       return false
     }
 
@@ -1232,8 +1254,22 @@ export default function MoonMapPage() {
 
   // Обработчик переключения слоя
   const handleToggleLayer = (layerId: string) => {
-    setActiveMapLayer(layerId)
-  }
+    console.log('Toggling layer:', layerId); // Добавим логирование
+    setLayers(prevLayers => prevLayers.map(layer => {
+      if (layer.id === layerId) {
+        // Если слой уже активен, деактивируем его
+        if (layer.isActive) {
+          console.log('Deactivating layer:', layer.id);
+          return { ...layer, isActive: false };
+        }
+        // Если слой становится активным, деактивируем все остальные
+        console.log('Activating layer:', layer.id, 'with rawImagePath:', layer.rawImagePath);
+        return { ...layer, isActive: true };
+      }
+      // Деактивируем все остальные слои
+      return { ...layer, isActive: false };
+    }));
+  };
 
   // Обработчик выбора слоя для просмотра информации
   const handleSelectLayerInfo = (layer: Layer) => {
@@ -1251,59 +1287,40 @@ export default function MoonMapPage() {
     }
   }
 
-  // Теперь обновим функцию renderGrid, чтобы отображать клетки по-разному в зависимости от того,
-  // находятся ли они внутри активной зоны или нет:
+  // Обновляем константы для размеров сетки
+  const GRID_SIZE = 25; // 25x25 тайлов
+  const TILE_SIZE = 20; // 20x20 пикселей
+  const TOTAL_SIZE = 500; // 500x500 пикселей
 
+  // Обновляем функцию renderGrid
   const renderGrid = () => {
-    const cells = []
+    const cells = [];
+    const activeLayerData = layers.find(l => l.isActive);
 
-    // Функция для проверки, находится ли точка внутри полигона
-    const isPointInPolygon = (point: { x: number; y: number }, polygon: { x: number; y: number }[]) => {
-      if (polygon.length < 3) return false
-      let inside = false
-      for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-        const xi = polygon[i].x,
-          yi = polygon[i].y
-        const xj = polygon[j].x,
-          yj = polygon[j].y
+    // Вычисляем начальное смещение для центрирования
+    const initialOffsetX = (window.innerWidth - TOTAL_SIZE) / 2;
+    const initialOffsetY = (window.innerHeight - TOTAL_SIZE) / 2;
 
-        const intersect = yi > point.y !== yj > point.y && point.x < ((xj - xi) * (point.y - yi)) / (yj - yi) + xi
-        if (intersect) inside = !inside
-      }
-      return inside
-    }
-
-    // Функция для проверки, находится ли точка внутри эллипса
-    const isPointInEllipse = (
-      point: { x: number; y: number },
-      center: { x: number; y: number },
-      radiusX: number,
-      radiusY: number,
-    ) => {
-      const normalizedX = (point.x - center.x) / radiusX
-      const normalizedY = (point.y - center.y) / radiusY
-      return normalizedX * normalizedX + normalizedY * normalizedY <= 1
-    }
-
-    for (let y = 0; y < 25; y++) {
-      for (let x = 0; x < 25; x++) {
-        // Find the tile at these coordinates
+    for (let y = 0; y < GRID_SIZE; y++) {
+      for (let x = 0; x < GRID_SIZE; x++) {
         const currentTile = areaData?.tiles?.find(t => 
-          t?.pixel_coords?.x_min === x * 20 && 
-          t?.pixel_coords?.y_min === y * 20
+          t?.pixel_coords?.x_min === x * TILE_SIZE && 
+          t?.pixel_coords?.y_min === y * TILE_SIZE
         );
 
-        // Проверяем, находится ли клетка внутри активной зоны
         let isInActiveZone = true;
-
         if (restrictionEnabled) {
           if (restrictionShape === "ellipse") {
-            const centerX = gridSize / 2;
-            const centerY = gridSize / 2;
-            const radiusX = ellipseWidth / (2 * Math.sqrt(cellSize));
-            const radiusY = ellipseHeight / (2 * Math.sqrt(cellSize));
-
-            isInActiveZone = isPointInEllipse({ x, y }, { x: centerX, y: centerY }, radiusX, radiusY);
+            const centerX = GRID_SIZE / 2;
+            const centerY = GRID_SIZE / 2;
+            const radiusX = ellipseWidth / (2 * Math.sqrt(TILE_SIZE));
+            const radiusY = ellipseHeight / (2 * Math.sqrt(TILE_SIZE));
+            isInActiveZone = isPointInEllipse(
+              { x, y },
+              { x: centerX, y: centerY },
+              radiusX,
+              radiusY
+            );
           } else if (restrictionShape === "polygon" && polygonPoints.length > 2) {
             isInActiveZone = isPointInPolygon({ x, y }, polygonPoints);
           }
@@ -1329,9 +1346,12 @@ export default function MoonMapPage() {
             style={{ 
               gridColumn: `${x + 1} / span 1`, 
               gridRow: `${y + 1} / span 1`,
+              width: `${TILE_SIZE}px`,
+              height: `${TILE_SIZE}px`,
               backgroundColor: currentTile && activeAnalysisTool === "coordinates" 
                 ? "rgba(0, 128, 255, 0.15)" 
-                : undefined 
+                : undefined,
+              position: 'relative'
             }}
             onClick={() => {
               if (activeAnalysisTool === "coordinates" && currentTile) {
@@ -1355,8 +1375,47 @@ export default function MoonMapPage() {
         );
       }
     }
-    return cells
-  }
+
+    return (
+      <div className="relative w-full h-full flex items-center justify-center">
+        <div 
+          className="relative"
+          style={{
+            width: `${TOTAL_SIZE}px`,
+            height: `${TOTAL_SIZE}px`,
+            transform: `scale(${mapZoom}) translate(${mapPosition.x}px, ${mapPosition.y}px)`,
+            transformOrigin: 'center',
+            transition: isDragging ? "none" : "transform 0.2s ease-out"
+          }}
+        >
+          {activeLayerData && (
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage: `url(${activeLayerData.rawImagePath})`,
+                backgroundSize: '100% 100%',
+                backgroundPosition: 'center',
+                opacity: 0.5,
+                width: `${TOTAL_SIZE}px`,
+                height: `${TOTAL_SIZE}px`
+              }}
+            />
+          )}
+          <div 
+            className="relative grid"
+            style={{
+              gridTemplateColumns: `repeat(${GRID_SIZE}, ${TILE_SIZE}px)`,
+              gridTemplateRows: `repeat(${GRID_SIZE}, ${TILE_SIZE}px)`,
+              width: `${TOTAL_SIZE}px`,
+              height: `${TOTAL_SIZE}px`
+            }}
+          >
+            {cells}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // Рендер размещенных объектов
   const renderPlacedObjects = () => {
@@ -1696,7 +1755,7 @@ export default function MoonMapPage() {
                 <div key={layer.id} className="flex items-center justify-between">
                   <button
                     className="text-left flex-grow px-2 py-1 hover:bg-gray-100 rounded text-sm truncate flex items-center"
-                    onClick={() => setSelectedImage({ path: layer.imagePath, title: layer.name })}
+                    onClick={() => handleLayerClick(layer)}
                     title={`${layer.name}\n${layer.description}`}
                   >
                     {getLayerIcon(layer.type)}
@@ -2412,7 +2471,9 @@ export default function MoonMapPage() {
               description: "Отображает высоту поверхности Луны. Темные области - низменности, светлые - возвышенности.",
               enabled: true,
               imagePath: `/images/layers/${baseName}_elevation.png`,
-              type: "height"
+              rawImagePath: `/images/layers/${baseName}_elevation.png`,
+              type: "height",
+              isActive: true,
             },
             {
               id: "slope",
@@ -2420,7 +2481,9 @@ export default function MoonMapPage() {
               description: "Отображает угол наклона поверхности. Полезно для определения пригодности участка для строительства.",
               enabled: false,
               imagePath: `/images/layers/${baseName}_slope.png`,
-              type: "slope"
+              rawImagePath: `/images/layers/${baseName}_slope.png`,
+              type: "slope",
+              isActive: false,
             },
             {
               id: "illumination",
@@ -2428,7 +2491,9 @@ export default function MoonMapPage() {
               description: "Показывает уровень освещенности поверхности.",
               enabled: false,
               imagePath: `/images/layers/${baseName}_illumination.png`,
-              type: "spectral"
+              rawImagePath: `/images/layers/${baseName}_illumination.png`,
+              type: "spectral",
+              isActive: false,
             },
             {
               id: "shadows",
@@ -2436,7 +2501,9 @@ export default function MoonMapPage() {
               description: "Показывает затененные участки поверхности.",
               enabled: false,
               imagePath: `/images/layers/${baseName}_shadows.png`,
-              type: "shadows"
+              rawImagePath: `/images/layers/${baseName}_shadows.png`,
+              type: "shadows",
+              isActive: false,
             },
             {
               id: "ice",
@@ -2444,7 +2511,9 @@ export default function MoonMapPage() {
               description: "Показывает предполагаемые места скопления водяного льда в кратерах.",
               enabled: false,
               imagePath: `/images/layers/${baseName}_ice_probability.png`,
-              type: "ice"
+              rawImagePath: `/images/layers/${baseName}_ice_probability.png`,
+              type: "ice",
+              isActive: false,
             }
           ];
           
@@ -2776,6 +2845,31 @@ export default function MoonMapPage() {
       }));
     }
   }, [selectedArea]);
+
+  const [activeLayer, setActiveLayer] = useState<string | null>(null);
+
+  // Обновляем обработчик клика на слой в боковом меню
+  const handleLayerClick = (layer: Layer) => {
+    console.log('Viewing layer with legend:', layer.id, 'using imagePath:', layer.imagePath);
+    setSelectedImage({ 
+      path: layer.imagePath,
+      title: layer.name 
+    });
+  };
+
+  // Добавляем эффект для начального центрирования
+  useEffect(() => {
+    if (mapRef.current) {
+      const rect = mapRef.current.getBoundingClientRect();
+      const initialX = (rect.width - TOTAL_SIZE) / 2;
+      const initialY = (rect.height - TOTAL_SIZE) / 2;
+      
+      setMapPosition({
+        x: initialX,
+        y: initialY
+      });
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-white">
