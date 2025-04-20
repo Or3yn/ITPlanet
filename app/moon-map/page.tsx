@@ -21,7 +21,7 @@ interface ObjectSize {
 }
 
 interface PlacedObject {
-  id: number
+  id: string
   type: string
   name: string
   x: number
@@ -33,7 +33,7 @@ interface PlacedObject {
 }
 
 interface Route {
-  id: number
+  id: string
   start: string
   end: string
   startObj: PlacedObject | null
@@ -43,7 +43,7 @@ interface Route {
 }
 
 interface Measurement {
-  id: number
+  id: string
   startX: number
   startY: number
   endX: number
@@ -150,12 +150,155 @@ interface CellPosition {
   y: number
 }
 
+// Add a new interface for TileData - just before the existing interfaces
+interface TileData {
+  tile_id: number;
+  pixel_coords: {
+    x_min: number;
+    y_min: number;
+    x_max: number;
+    y_max: number;
+  };
+  geo_coords: {
+    lon_min: number;
+    lat_min: number;
+    lon_max: number;
+    lat_max: number;
+  };
+  layers: {
+    elevation: {
+      mean: number;
+      max: number;
+      min: number;
+    };
+    slope: {
+      mean: number;
+      max: number;
+      min: number;
+    };
+    shadows: {
+      mean: number;
+      max: number;
+      min: number;
+    };
+    illumination: {
+      mean: number;
+      max: number;
+      min: number;
+    };
+    ice_probability: {
+      mean: number;
+      max: number;
+      min: number;
+    };
+  };
+}
+
+// Add an interface for the area data from JSON
+interface AreaData {
+  name?: string;
+  description?: string;
+  gridSize?: number;
+  tiles: TileData[];
+}
+
+// Добавляем компонент TileInfoModal после всех интерфейсов
+const TileInfoModal = ({ tile, onClose }: { tile: TileData | null; onClose: () => void }) => {
+  if (!tile) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded-lg shadow-lg max-w-2xl w-full mx-4">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold">Информация о тайле #{tile.tile_id}</h2>
+          <button 
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-full"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <h3 className="font-medium">Координаты пикселей</h3>
+            <div className="bg-gray-50 p-3 rounded">
+              <div>X: {tile.pixel_coords.x_min}-{tile.pixel_coords.x_max}</div>
+              <div>Y: {tile.pixel_coords.y_min}-{tile.pixel_coords.y_max}</div>
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <h3 className="font-medium">Географические координаты</h3>
+            <div className="bg-gray-50 p-3 rounded">
+              <div>Долгота: {tile.geo_coords.lon_min.toFixed(6)}° - {tile.geo_coords.lon_max.toFixed(6)}°</div>
+              <div>Широта: {tile.geo_coords.lat_min.toFixed(6)}° - {tile.geo_coords.lat_max.toFixed(6)}°</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 space-y-4">
+          <div>
+            <h3 className="font-medium mb-2">Характеристики поверхности</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="bg-gray-50 p-3 rounded">
+                <div className="font-medium text-sm mb-1">Высота</div>
+                <div className="text-sm">
+                  <div>Средняя: {tile.layers.elevation.mean.toFixed(2)} м</div>
+                  <div>Мин: {tile.layers.elevation.min.toFixed(2)} м</div>
+                  <div>Макс: {tile.layers.elevation.max.toFixed(2)} м</div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-3 rounded">
+                <div className="font-medium text-sm mb-1">Наклон</div>
+                <div className="text-sm">
+                  <div>Средний: {tile.layers.slope.mean.toFixed(2)}°</div>
+                  <div>Мин: {tile.layers.slope.min.toFixed(2)}°</div>
+                  <div>Макс: {tile.layers.slope.max.toFixed(2)}°</div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-3 rounded">
+                <div className="font-medium text-sm mb-1">Освещённость</div>
+                <div className="text-sm">
+                  <div>Средняя: {(tile.layers.illumination.mean * 100).toFixed(2)}%</div>
+                  <div>Мин: {(tile.layers.illumination.min * 100).toFixed(2)}%</div>
+                  <div>Макс: {(tile.layers.illumination.max * 100).toFixed(2)}%</div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-3 rounded">
+                <div className="font-medium text-sm mb-1">Тени</div>
+                <div className="text-sm">
+                  <div>Среднее: {(tile.layers.shadows.mean * 100).toFixed(2)}%</div>
+                  <div>Мин: {(tile.layers.shadows.min * 100).toFixed(2)}%</div>
+                  <div>Макс: {(tile.layers.shadows.max * 100).toFixed(2)}%</div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-3 rounded">
+                <div className="font-medium text-sm mb-1">Вероятность льда</div>
+                <div className="text-sm">
+                  <div>Средняя: {(tile.layers.ice_probability.mean * 100).toFixed(2)}%</div>
+                  <div>Мин: {(tile.layers.ice_probability.min * 100).toFixed(2)}%</div>
+                  <div>Макс: {(tile.layers.ice_probability.max * 100).toFixed(2)}%</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function MoonMapPage() {
   // Get state and actions from store
   const {
     mapPosition,
     mapZoom,
-    gridSize,
+    gridSize, // Это значение теперь будет установлено в 25
     cellSize,
     isDragging,
     dragStart,
@@ -548,7 +691,7 @@ export default function MoonMapPage() {
     const { width, height, safetyZone } = size
     if (canPlaceObject(x, y, width, height, safetyZone)) {
       const newObject: PlacedObject = {
-        id: Date.now(),
+        id: Date.now().toString(),
         type: selectedInfrastructure,
         name: `${selectedInfrastructure}-${Date.now()}`,
         x,
@@ -722,15 +865,23 @@ export default function MoonMapPage() {
     if (!mapRef.current || !draggedObject) return
 
     const rect = mapRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    const mouseX = e.clientX - rect.left
+    const mouseY = e.clientY - rect.top
+    
+    // Calculate cell coordinates from mouse position
+    const cellX = Math.floor((mouseX - mapPosition.x) / (cellSize * mapZoom))
+    const cellY = Math.floor((mouseY - mapPosition.y) / (cellSize * mapZoom))
 
     const newObject: PlacedObject = {
       id: Date.now().toString(),
       type: draggedObject,
-      position: { x, y },
-      rotation: 0,
-      scale: 1,
+      name: `${draggedObject}-${Date.now().toString().slice(-4)}`,
+      x: cellX,
+      y: cellY,
+      width: 1,
+      height: 1,
+      safetyZone: 1,
+      color: objectColors[draggedObject as InfrastructureKey] || "bg-gray-500",
     }
 
     setPlacedObjects([...placedObjects, newObject])
@@ -786,24 +937,65 @@ export default function MoonMapPage() {
     }
   }
 
-  // Обновить handleMapClick для поддержки рисования полигона
+  // Modify the handleMapClick function to support tile data display
   const handleMapClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!mapRef.current) return
 
     const rect = mapRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
+    
+    // Calculate cell coordinates
+    const cellX = Math.floor((x - mapPosition.x) / (cellSize * mapZoom))
+    const cellY = Math.floor((y - mapPosition.y) / (cellSize * mapZoom))
+
+    // Check if coordinates tool is active and if we have area data
+    if (activeAnalysisTool === "coordinates" && areaData) {
+      // Find the tile at these coordinates
+      const tile = areaData.tiles.find(t => 
+        t?.pixel_coords?.x_min <= cellX * (500/gridSize) && 
+        t?.pixel_coords?.x_max >= cellX * (500/gridSize) && 
+        t?.pixel_coords?.y_min <= cellY * (500/gridSize) && 
+        t?.pixel_coords?.y_max >= cellY * (500/gridSize)
+      );
+      
+      if (tile) {
+        setSelectedTile(tile);
+        setShowTileModal(true); // Открываем модальное окно вместо временного отображения
+      }
+      return;
+    }
 
     if (activeAnalysisTool === "measure") {
       if (!isMeasuring) {
         setMeasurementStartState({ x, y })
         setIsMeasuring(true)
       } else {
-        const distance = Math.sqrt(
-          Math.pow(x - measurementStartState.x, 2) + Math.pow(y - measurementStartState.y, 2)
-        )
-        setMeasurements([...measurements, { start: measurementStartState, end: { x, y }, distance }])
-        setIsMeasuring(false)
+        if (measurementStartState) {
+          const distance = Math.sqrt(
+            Math.pow(x - measurementStartState.x, 2) + Math.pow(y - measurementStartState.y, 2)
+          )
+          
+          // Calculate cell coordinates for start and end
+          const startCellX = Math.floor((measurementStartState.x - mapPosition.x) / (cellSize * mapZoom))
+          const startCellY = Math.floor((measurementStartState.y - mapPosition.y) / (cellSize * mapZoom))
+          const endCellX = Math.floor((x - mapPosition.x) / (cellSize * mapZoom))
+          const endCellY = Math.floor((y - mapPosition.y) / (cellSize * mapZoom))
+          
+          // Create a new measurement with string ID
+          const newMeasurement: Measurement = {
+            id: Date.now().toString(),
+            startX: startCellX,
+            startY: startCellY,
+            endX: endCellX,
+            endY: endCellY,
+            distance: distance,
+            color: "blue"
+          }
+          
+          setMeasurements([...measurements, newMeasurement])
+          setIsMeasuring(false)
+        }
       }
     } else if (activeAnalysisTool === "polygon") {
       if (!drawingPolygon) {
@@ -839,7 +1031,7 @@ export default function MoonMapPage() {
         const time = Math.ceil(Number.parseInt(distance) / 80) // Assuming 80m per minute walking speed
 
         const newRoute: Route = {
-          id: Date.now(),
+          id: Date.now().toString(),
           start: routeStartObject.name,
           end: obj.name,
           startObj: routeStartObject,
@@ -880,7 +1072,7 @@ export default function MoonMapPage() {
     )
 
       const newRoute: Route = {
-        id: Date.now(),
+        id: Date.now().toString(),
         start: routeStart,
         end: routeEnd,
         startObj,
@@ -927,7 +1119,7 @@ export default function MoonMapPage() {
   }
 
   // Обработчик редактирования маршрута
-  const handleEditRoute = (routeId: number) => {
+  const handleEditRoute = (routeId: string) => {
     const route = routes.find((r) => r.id === routeId)
     if (route) {
       setRouteStart(route.start)
@@ -937,22 +1129,22 @@ export default function MoonMapPage() {
   }
 
   // Обработчик удаления маршрута
-  const handleDeleteRoute = (routeId: number) => {
+  const handleDeleteRoute = (routeId: string) => {
     setRoutes(routes.filter((r) => r.id !== routeId))
   }
 
   // Обработчик удаления объекта
-  const handleDeleteObject = (objectId: number) => {
+  const handleDeleteObject = (objectId: string) => {
     setPlacedObjects(placedObjects.filter((obj) => obj.id !== objectId))
   }
 
   // Обработчик удаления измерения
-  const handleDeleteMeasurement = (measurementId: number) => {
+  const handleDeleteMeasurement = (measurementId: string) => {
     setMeasurements(measurements.filter((m) => m.id !== measurementId))
   }
 
   // Обработчик изменения цвета измерения
-  const handleChangeMeasurementColor = (measurementId: number, color: string) => {
+  const handleChangeMeasurementColor = (measurementId: string, color: string) => {
     setMeasurements(
       measurements.map((m) => (m.id === measurementId ? { ...m, color } : m)),
     )
@@ -1051,43 +1243,74 @@ export default function MoonMapPage() {
       return normalizedX * normalizedX + normalizedY * normalizedY <= 1
     }
 
-    for (let y = 0; y < gridSize; y++) {
-      for (let x = 0; x < gridSize; x++) {
+    for (let y = 0; y < 25; y++) {
+      for (let x = 0; x < 25; x++) {
+        // Find the tile at these coordinates
+        const currentTile = areaData?.tiles?.find(t => 
+          t?.pixel_coords?.x_min === x * 20 && 
+          t?.pixel_coords?.y_min === y * 20
+        );
+
         // Проверяем, находится ли клетка внутри активной зоны
-        let isInActiveZone = true
+        let isInActiveZone = true;
 
         if (restrictionEnabled) {
           if (restrictionShape === "ellipse") {
-            const centerX = gridSize / 2
-            const centerY = gridSize / 2
-            const radiusX = ellipseWidth / (2 * Math.sqrt(cellSize))
-            const radiusY = ellipseHeight / (2 * Math.sqrt(cellSize))
+            const centerX = gridSize / 2;
+            const centerY = gridSize / 2;
+            const radiusX = ellipseWidth / (2 * Math.sqrt(cellSize));
+            const radiusY = ellipseHeight / (2 * Math.sqrt(cellSize));
 
-            isInActiveZone = isPointInEllipse({ x, y }, { x: centerX, y: centerY }, radiusX, radiusY)
+            isInActiveZone = isPointInEllipse({ x, y }, { x: centerX, y: centerY }, radiusX, radiusY);
           } else if (restrictionShape === "polygon" && polygonPoints.length > 2) {
-            isInActiveZone = isPointInPolygon({ x, y }, polygonPoints)
+            isInActiveZone = isPointInPolygon({ x, y }, polygonPoints);
           }
         }
 
-        const cellClass =
-          isInActiveZone || !restrictionEnabled
-            ? "border border-gray-300 hover:bg-blue-100 hover:bg-opacity-30 transition-colors"
-            : "border border-gray-300 bg-gray-500 bg-opacity-50"
+        let cellClass = "";
+        if (isInActiveZone || !restrictionEnabled) {
+          cellClass = currentTile 
+            ? `border border-gray-300 transition-colors ${
+                activeAnalysisTool === "coordinates" 
+                  ? "hover:bg-blue-200 hover:bg-opacity-50 cursor-pointer" 
+                  : "hover:bg-blue-100 hover:bg-opacity-30"
+              }`
+            : "border border-gray-300 hover:bg-gray-100 hover:bg-opacity-30 transition-colors opacity-60";
+        } else {
+          cellClass = "border border-gray-300 bg-gray-500 bg-opacity-50";
+        }
 
         cells.push(
           <div
             key={`cell-${x}-${y}`}
             className={cellClass}
-            style={{ gridColumn: `${x + 1} / span 1`, gridRow: `${y + 1} / span 1` }}
+            style={{ 
+              gridColumn: `${x + 1} / span 1`, 
+              gridRow: `${y + 1} / span 1`,
+              backgroundColor: currentTile && activeAnalysisTool === "coordinates" 
+                ? "rgba(0, 128, 255, 0.15)" 
+                : undefined 
+            }}
             onClick={() => {
-              if (selectedInfrastructure && (isInActiveZone || !restrictionEnabled)) {
-                handlePlaceObject(x, y)
+              if (activeAnalysisTool === "coordinates" && currentTile) {
+                setSelectedTile(currentTile);
+                setShowTileModal(true);
+              } else if (selectedInfrastructure && (isInActiveZone || !restrictionEnabled)) {
+                handlePlaceObject(x, y);
               }
             }}
-            onMouseEnter={() => setHoveredCellState({ x, y })}
-            onMouseLeave={() => setHoveredCellState(null)}
-          />,
-        )
+            onMouseEnter={() => {
+              setHoveredCellState({ x, y });
+              if (activeAnalysisTool === "coordinates" && currentTile) {
+                setHoveredTile(currentTile);
+              }
+            }}
+            onMouseLeave={() => {
+              setHoveredCellState(null);
+              setHoveredTile(null);
+            }}
+          />
+        );
       }
     }
     return cells
@@ -2318,6 +2541,104 @@ export default function MoonMapPage() {
     }
   }, [hoverTimer])
 
+  // Add new state for tile data
+  const [areaData, setAreaData] = useState<AreaData | null>(null)
+  const [selectedTile, setSelectedTile] = useState<TileData | null>(null)
+
+  // Add a function to load tile data based on selected area
+  const loadAreaData = async (area: string) => {
+    try {
+      const response = await fetch(`/api/lunar-data?area=${area}`)
+      if (!response.ok) {
+        console.error(`Failed to load data for area ${area}`)
+        return
+      }
+      const tiles = await response.json()
+      setAreaData({
+        name: area,
+        description: `Данные для участка ${area}`,
+        gridSize: 500,
+        tiles: tiles
+      })
+    } catch (error) {
+      console.error(`Error loading area data: ${error}`)
+    }
+  }
+  
+  // Update when selectedArea changes
+  useEffect(() => {
+    if (selectedArea) {
+      loadAreaData(selectedArea)
+    }
+  }, [selectedArea])
+
+  // В основном компоненте добавляем состояние для модального окна
+  const [showTileModal, setShowTileModal] = useState(false);
+
+  // Добавляем состояние для отображения координат при наведении
+  const [hoveredTileInfo, setHoveredTileInfo] = useState<{
+    x_min: number;
+    x_max: number;
+    y_min: number;
+    y_max: number;
+  } | null>(null);
+
+  // Добавляем компонент для отображения координат при наведении
+  const renderHoveredTileInfo = () => {
+    if (!hoveredTileInfo || !hoveredCellState || activeAnalysisTool !== "coordinates") return null;
+
+    return (
+      <div
+        className="absolute bg-white px-2 py-1 rounded shadow-md text-xs z-50 pointer-events-none"
+        style={{
+          left: `${(hoveredCellState.x + 0.5) * (100 / 25)}%`,
+          top: `${(hoveredCellState.y + 0.5) * (100 / 25)}%`,
+          transform: "translate(-50%, -150%)",
+          border: "1px solid #e5e7eb",
+        }}
+      >
+        <div className="font-medium">Координаты пикселей:</div>
+        <div>X: {hoveredTileInfo.x_min}-{hoveredTileInfo.x_max}</div>
+        <div>Y: {hoveredTileInfo.y_min}-{hoveredTileInfo.y_max}</div>
+      </div>
+    );
+  };
+
+  // Удаляем старый код renderTileInfo и showTileInfo
+  // Добавляем новый компонент для отображения координат при наведении
+  const HoveredTileInfo = ({ tile, position }: { 
+    tile: { 
+      pixel_coords: { 
+        x_min: number; 
+        x_max: number; 
+        y_min: number; 
+        y_max: number; 
+      } 
+    } | null; 
+    position: { x: number; y: number } | null;
+  }) => {
+    if (!tile || !position || !tile.pixel_coords) return null;
+
+    return (
+      <div
+        className="absolute bg-white px-2 py-1 rounded shadow-md text-xs z-50 pointer-events-none"
+        style={{
+          left: `${(position.x + 0.5) * (100 / 25)}%`,
+          top: `${(position.y + 0.5) * (100 / 25)}%`,
+          transform: "translate(-50%, -150%)",
+          border: "1px solid #e5e7eb",
+        }}
+      >
+        <div className="font-medium">Координаты пикселей:</div>
+        <div>X: {tile.pixel_coords.x_min}-{tile.pixel_coords.x_max}</div>
+        <div>Y: {tile.pixel_coords.y_min}-{tile.pixel_coords.y_max}</div>
+      </div>
+    );
+  };
+
+  // В основном компоненте добавляем состояние для отображения координат при наведении
+  const [hoveredTile, setHoveredTile] = useState<TileData | null>(null);
+
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
@@ -3345,6 +3666,7 @@ export default function MoonMapPage() {
                           Сетка: {gridSize}×{gridSize} (каждая клетка = {cellSize} м²)
                         </div>
                       </div>
+                      {renderHoveredTileInfo()}
                     </TabsContent>
 
                     <TabsContent value="3d">
@@ -3964,6 +4286,21 @@ export default function MoonMapPage() {
       {renderTerrainUploadDialog()}
       {renderMetadataUploadDialog()}
       {renderMetadataEditorDialog()}
+      
+      {/* Добавляем модальное окно в конец, перед закрывающим тегом */}
+      {showTileModal && (
+        <TileInfoModal
+          tile={selectedTile}
+          onClose={() => {
+            setShowTileModal(false);
+            setSelectedTile(null);
+          }}
+        />
+      )}
+      {/* В JSX добавляем компонент HoveredTileInfo */}
+      {hoveredTile && (
+        <HoveredTileInfo tile={hoveredTile} position={hoveredCellState} />
+      )}
     </div>
   )
 }
