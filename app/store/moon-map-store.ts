@@ -73,8 +73,8 @@ export const useMoonMapStore = create<MoonMapState>()(
       // Initial state
       mapPosition: { x: 0, y: 0 },
       mapZoom: 1,
-      gridSize: 20,
-      cellSize: 10,
+      gridSize: 25,
+      cellSize: 20,
       isDragging: false,
       dragStart: null,
       hoveredCell: null,
