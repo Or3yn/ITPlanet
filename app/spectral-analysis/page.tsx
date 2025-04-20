@@ -36,7 +36,7 @@ export default function SpectralAnalysisPage() {
 
           {/* Section for Processed Images */}
           <section className="mb-12 bg-white rounded-lg shadow-md p-8">
-            <h2 className="text-2xl font-bold mb-6">🔹 Обработанные изображения</h2>
+            <h2 className="text-2xl font-bold mb-6">🔹 Обработанные изображения</h2> 
             <ProcessedImagesGallery />
           </section>
 

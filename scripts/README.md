@@ -1,6 +1,6 @@
 # Image Processing Script for Lunar Surface Analysis
 
-This script processes satellite imagery to extract terrain data, generate visualizations for elevation, slope, shadows, illumination, and ice probability, and create tile metadata for lunar base planning.
+This script processes satellite imagery to extract terrain data, generate visualizations for elevation, slope, shadows, illumination, and ice probability, and create tile metadata for  lunar base planning.
 
 ## Directory Structure
 
