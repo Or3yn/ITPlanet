@@ -68,6 +68,8 @@ interface Layer {
   name: string
   description: string
   enabled: boolean
+  imagePath: string
+  type: 'height' | 'spectral' | 'slope' | 'ice'
 }
 
 // Add interfaces for terrain and metadata
@@ -340,71 +342,37 @@ export default function MoonMapPage() {
   // Layer management
   const [layers, setLayers] = useState<Layer[]>([
     {
-      id: "nomenclature",
-      name: "Nomenclature (Номенклатура)",
-      description:
-        "Отображает названия лунных объектов, утверждённые Международным астрономическим союзом (IAU). Включает кратеры, горы, долины, моря и другие географические объекты. Позволяет ориентироваться на поверхности Луны и учитывать географические особенности при строительстве.",
-      enabled: false,
-    },
-    {
-      id: "3d-printing",
-      name: "3D Printing Sites",
-      description:
-        "Слой с готовыми 3D-моделями объектов Луны, подходящими для 3D-печати. Позволяет визуализировать потенциальные конструкции лунной базы.",
-      enabled: false,
-    },
-    {
-      id: "moon-map",
-      name: "Карта Луны с топонимами",
-      description:
-        "Отображает названия морей, кратеров и гор (например, Oceanus Procellarum, Mare Tranquillitatis, Copernicus). Используется для навигации и планирования посадочных миссий.",
+      id: "height",
+      name: "Рельеф местности",
+      description: "Отображает высоту поверхности Луны. Темные области - низменности, светлые - возвышенности.",
       enabled: true,
+      imagePath: "/scripts/output/images/height.png",
+      type: "height"
     },
     {
-      id: "spole-psrs",
-      name: "SPOLE PSRs (80S to 90S)",
-      description:
-        "Отображает вечно затенённые регионы (Permanently Shadowed Regions) в полярных областях Луны. В этих зонах может находиться водяной лёд – критичный ресурс для жизнеобеспечения. Температурные условия делают эти зоны непригодными для некоторых видов инфраструктуры.",
+      id: "spectral",
+      name: "Спектральный анализ",
+      description: "Показывает минералогический состав поверхности. Разные цвета соответствуют разным минералам.",
       enabled: false,
+      imagePath: "/scripts/output/images/spectral.png",
+      type: "spectral"
     },
     {
-      id: "south-pole-geomorphic",
-      name: "South Pole Geomorphic Map",
-      description:
-        "Подробная геоморфологическая карта Южного полюса Луны. Показывает различные типы поверхности, что важно для размещения зданий и техники.",
+      id: "slope",
+      name: "Наклон поверхности",
+      description: "Отображает угол наклона поверхности. Полезно для определения пригодности участка для строительства.",
       enabled: false,
+      imagePath: "/scripts/output/images/slope.png",
+      type: "slope"
     },
     {
-      id: "pit-locations",
-      name: "Pit Locations",
-      description:
-        "Показывает лунные ямы (pits) – входы в подземные лавовые тоннели. Ямы могут быть использованы как естественные укрытия от радиации. Исследование тоннелей поможет выяснить историю вулканической активности Луны.",
+      id: "ice",
+      name: "Ледяные отложения",
+      description: "Показывает предполагаемые места скопления водяного льда в кратерах.",
       enabled: false,
-    },
-    {
-      id: "wrinkle-ridges",
-      name: "Wrinkle Ridges",
-      description: "Складчатые хребты в лунных морях, образовавшиеся в результате тектонических процессов.",
-      enabled: false,
-    },
-    {
-      id: "lobate-scarps",
-      name: "Lobate Scarps",
-      description: "Лобатные уступы – малые разломы, появившиеся из-за сжатия коры Луны.",
-      enabled: false,
-    },
-    {
-      id: "polar-scarp",
-      name: "Polar Scarp Locations",
-      description: "Уступы в полярных областях Луны.",
-      enabled: false,
-    },
-    {
-      id: "malapert-3d",
-      name: "A3: 3D Models at Malapert",
-      description: "Отображает 3D-модели объектов в районе Malapert Massif, одном из перспективных мест посадки.",
-      enabled: false,
-    },
+      imagePath: "/scripts/output/images/ice.png",
+      type: "ice"
+    }
   ])
 
   const objectNames: StringMap = {
@@ -2125,11 +2093,46 @@ export default function MoonMapPage() {
   }
 
   // Add handler for file selection
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'terrain' | 'metadata') => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, type: 'terrain' | 'metadata') => {
     const files = e.target.files
     if (files && files.length > 0) {
       if (type === 'terrain') {
         setSelectedFile(files[0])
+        
+        // Создаем FormData для отправки файла
+        const formData = new FormData()
+        formData.append('file', files[0])
+        
+        try {
+          // Отправляем файл на сервер для обработки
+          const response = await fetch('/api/process-image', {
+            method: 'POST',
+            body: formData
+          })
+          
+          if (!response.ok) {
+            throw new Error('Ошибка при обработке изображения')
+          }
+          
+          const result = await response.json()
+          
+          // Обновляем слои с новыми путями к изображениям
+          setLayers(prevLayers => 
+            prevLayers.map(layer => ({
+              ...layer,
+              imagePath: `/scripts/output/images/${layer.type}.png`
+            }))
+          )
+          
+          // Показываем сообщение об успехе
+          setErrorMessage("✅ Изображение успешно обработано")
+          setTimeout(() => setErrorMessage(null), 3000)
+          
+        } catch (error) {
+          console.error('Error:', error)
+          setErrorMessage("❌ Ошибка при обработке изображения")
+          setTimeout(() => setErrorMessage(null), 3000)
+        }
       } else {
         setSelectedMetadataFile(files[0])
       }

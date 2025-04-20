@@ -1,221 +1,421 @@
-# Установка зависимостей (для Google Colab)
-!apt-get install -q python3-gdal
-!pip install -q pyproj matplotlib
-
-from osgeo import gdal
 import matplotlib.pyplot as plt
+from osgeo import gdal, osr
 import numpy as np
-from pyproj import Proj, transform
-from google.colab import files
 import os
 import sys
 import json
-import math
-import matplotlib
+from pathlib import Path
+from tqdm import tqdm
+import argparse
 
-# Set matplotlib to use non-interactive backend
+# Настройки matplotlib
+import matplotlib
 matplotlib.use("Agg")
 
-# Define input and output directories
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-INPUT_DIR = os.path.join(SCRIPT_DIR, "input")
-OUTPUT_DIR = os.path.join(SCRIPT_DIR, "output")
-IMAGES_DIR = os.path.join(OUTPUT_DIR, "images")
+# Определяем пути к директориям
+SCRIPT_DIR = Path(__file__).parent.absolute()
+OUTPUT_DIR = SCRIPT_DIR / 'output'
+IMAGES_DIR = OUTPUT_DIR / 'images'
+JSON_DIR = OUTPUT_DIR / 'json'
 
-# Ensure output directories exist
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-os.makedirs(IMAGES_DIR, exist_ok=True)
+print(f"Script directory: {SCRIPT_DIR}")
+print(f"Output directory: {OUTPUT_DIR}")
+print(f"Images directory: {IMAGES_DIR}")
+print(f"JSON directory: {JSON_DIR}")
 
-def process_image(image_path):
-    """
-    Process a single image and generate channel visualizations and tile data
-    """
-    print(f"Processing image: {image_path}")
+# Создаем директории если их нет
+OUTPUT_DIR.mkdir(exist_ok=True)
+IMAGES_DIR.mkdir(exist_ok=True)
+JSON_DIR.mkdir(exist_ok=True)
+
+class TileProcessor:
+    def __init__(self, ds):
+        self.ds = ds
+        self.width = ds.RasterXSize
+        self.height = ds.RasterYSize
+        self.num_tiles = 25
+        self.tile_size_x = self.width // self.num_tiles
+        self.tile_size_y = self.height // self.num_tiles
+        
+        # Геопривязка
+        self.geotransform = ds.GetGeoTransform()
+        self.projection = ds.GetProjection()
+        if not self.projection:
+            print("Warning: No projection found in the input file.")
+            self.src_srs = None
+            self.coord_transform = None
+        else:
+            self.src_srs = osr.SpatialReference()
+            self.src_srs.ImportFromWkt(self.projection)
+            self.dst_srs = self.src_srs.CloneGeogCS()
+            if self.dst_srs is None:
+                 print("Warning: Could not clone spatial reference to geographic coordinates.")
+                 self.coord_transform = None
+            else:
+                 self.coord_transform = osr.CoordinateTransformation(self.src_srs, self.dst_srs)
+                 if self.coord_transform is None:
+                     print("Warning: Could not create coordinate transformation.")
+
+    def pixel_to_coords(self, px, py):
+        """Конвертация пиксельных координат в географические"""
+        if not self.geotransform or not self.coord_transform:
+            # print("Debug: Returning None from pixel_to_coords due to missing geotransform/coord_transform")
+            return None, None # Возвращаем None, если геопривязка не удалась
+            
+        try:
+            # Рассчитываем координаты в исходной проекции
+            x = self.geotransform[0] + px * self.geotransform[1] + py * self.geotransform[2]
+            y = self.geotransform[3] + px * self.geotransform[4] + py * self.geotransform[5]
+            # Трансформируем в географические координаты (долгота, широта)
+            lon, lat, _ = self.coord_transform.TransformPoint(x, y)
+            # print(f"Debug: Transformed ({px},{py}) -> ({x},{y}) -> ({lon},{lat})")
+            return lon, lat
+        except Exception as e:
+            print(f"Error during coordinate transformation for pixel ({px}, {py}): {e}")
+            return None, None
+
+    def process_tiles(self, layers_data):
+        """Генерация данных по тайлам"""
+        tiles = []
+        tile_id = 0
+        
+        print("Starting tile processing...")
+        for i in tqdm(range(self.num_tiles), desc="Обработка тайлов"):
+            for j in range(self.num_tiles):
+                # Границы тайла
+                x_min = j * self.tile_size_x
+                y_min = i * self.tile_size_y
+                x_max = x_min + self.tile_size_x
+                y_max = y_min + self.tile_size_y
+                
+                # Географические координаты углов
+                lon_min, lat_min = self.pixel_to_coords(x_min, y_min)
+                lon_max, lat_max = self.pixel_to_coords(x_max, y_max)
+                
+                # Если координаты не удалось получить, пропускаем гео-блок
+                geo_coords_data = None
+                if lon_min is not None and lat_min is not None and lon_max is not None and lat_max is not None:
+                    geo_coords_data = {
+                        "lon_min": round(lon_min, 6),
+                        "lat_min": round(lat_min, 6),
+                        "lon_max": round(lon_max, 6),
+                        "lat_max": round(lat_max, 6)
+                    }
+
+                # Собираем данные по слоям
+                tile_data = {
+                    "tile_id": tile_id,
+                    "pixel_coords": {
+                        "x_min": int(x_min),
+                        "y_min": int(y_min),
+                        "x_max": int(x_max),
+                        "y_max": int(y_max)
+                    },
+                    "geo_coords": geo_coords_data, # Может быть None
+                    "layers": {}
+                }
+                
+                # Анализ данных слоев
+                for layer_name, data in layers_data.items():
+                    if data is not None:  # Проверка, что данные слоя существуют
+                        # Проверяем, что границы тайла не выходят за пределы данных
+                        if y_max <= data.shape[0] and x_max <= data.shape[1]:
+                             tile_slice = data[y_min:y_max, x_min:x_max]
+                             if tile_slice.size > 0 and not np.all(np.isnan(tile_slice)):
+                                 try:
+                                     tile_data["layers"][layer_name] = {
+                                         "mean": round(float(np.nanmean(tile_slice)), 2),
+                                         "max": round(float(np.nanmax(tile_slice)), 2),
+                                         "min": round(float(np.nanmin(tile_slice)), 2)
+                                     }
+                                 except Exception as e:
+                                     print(f"Warning: Error calculating stats for tile {tile_id}, layer {layer_name}. Slice shape: {tile_slice.shape}. Error: {e}")
+                                     tile_data["layers"][layer_name] = {"mean": None, "max": None, "min": None}
+                             else:
+                                 tile_data["layers"][layer_name] = {"mean": None, "max": None, "min": None}
+                        else:
+                             # Границы тайла вышли за пределы массива данных
+                             # print(f"Warning: Tile slice {tile_id} ({y_min}:{y_max}, {x_min}:{x_max}) out of bounds for layer {layer_name} with shape {data.shape}")
+                             tile_data["layers"][layer_name] = {"mean": None, "max": None, "min": None}
+                    else:
+                        tile_data["layers"][layer_name] = None # Устанавливаем None, если данных слоя нет
+                
+                tiles.append(tile_data)
+                tile_id += 1
+        print("Tile processing finished.")
+        return tiles
+
+def process_image(input_file_path: Path, output_prefix: str):
+    """Основная функция обработки изображения"""
+    print(f"\nОбработка файла: {input_file_path.name} с префиксом '{output_prefix}'")
+
+    gdal.UseExceptions() # Включаем исключения GDAL для лучшей диагностики
+    ds = None
+    try:
+        ds = gdal.Open(str(input_file_path))
+    except RuntimeError as e:
+         print(f"GDAL Error opening file {input_file_path}: {e}")
+         return False
+         
+    if ds is None:
+        # Эта проверка может быть избыточной, если UseExceptions включен
+        print(f"Ошибка: Не удалось открыть файл {input_file_path} (ds is None)")
+        return False
+
+    # Получаем размеры и проекцию
+    width = ds.RasterXSize
+    height = ds.RasterYSize
+    projection = ds.GetProjection()
     
-    # Open the dataset
-    dataset = gdal.Open(image_path)
-    if not dataset:
-        raise FileNotFoundError(f"❌ Не удалось открыть файл: {image_path}")
-
-    # === 2. Extract geodata ===
-    geo = dataset.GetGeoTransform()
-    projection = dataset.GetProjection()
-    pixel_width = abs(geo[1])
-    pixel_height = abs(geo[5])
-    origin_x = geo[0]
-    origin_y = geo[3]
-    width = dataset.RasterXSize
-    height = dataset.RasterYSize
-    bands = dataset.RasterCount
-
-    # === 3. Image size in meters ===
-    image_width_m = width * pixel_width
-    image_height_m = height * pixel_height
-    image_area_m2 = image_width_m * image_height_m
-
-    # === 4. Determine projection ===
-    srs = osr.SpatialReference()
-    srs.ImportFromWkt(projection)
-
-    print("\n📌 МЕТАДАННЫЕ СНИМКА:")
-    print(f"- Размер: {width} x {height} пикселей")
-    print(f"- Пиксель: {pixel_width:.4f} м (X), {pixel_height:.4f} м (Y)")
-    print(f"- Origin: ({origin_x}, {origin_y})")
-    print(f"\n🖼 ФИЗИЧЕСКИЙ РАЗМЕР СНИМКА:")
-    print(f"- Ширина: {image_width_m:.2f} м")
-    print(f"- Высота: {image_height_m:.2f} м")
-    print(f"- Площадь: {image_area_m2:.2f} м² ({image_area_m2/1e6:.3f} км²)")
-
-    print("\n🌍 ПРОЕКЦИЯ (WKT):")
-    print(srs.ExportToPrettyWkt())
-
-    if srs.IsGeographic():
-        print("📌 Тип координат: Geographic (градусы)")
-    elif srs.IsProjected():
-        print(f"📌 Тип координат: Projected (метры)")
-        print(f"🗺 Название проекции: {srs.GetAttrValue('projcs')}")
-    else:
-        print("❓ Тип координат: Неизвестно")
-
-    # === 5. Tiling (max 2.25 m) ===
-    tile_target_size_m = 2.25
-    tile_width_px = max(1, int(tile_target_size_m // pixel_width))
-    tile_height_px = max(1, int(tile_target_size_m // pixel_height))
-    tile_width_m = tile_width_px * pixel_width
-    tile_height_m = tile_height_px * pixel_height
-
-    tile_cols = width // tile_width_px
-    tile_rows = height // tile_height_px
-    actual_tile_count = tile_cols * tile_rows
-    tile_area_m2 = tile_width_m * tile_height_m
-    total_area_m2 = tile_area_m2 * actual_tile_count
-
-    print(f"\n📦 Тайлов: {tile_rows} x {tile_cols} = {actual_tile_count}")
-    print(f"🔲 Размер тайла: {tile_width_px}px x {tile_height_px}px → {tile_width_m:.2f} м x {tile_height_m:.2f} м")
-    print(f"🧮 Площадь 1 тайла: {tile_area_m2:.2f} м²")
-    print(f"📏 Общая площадь покрытия: {total_area_m2:.2f} м² ({total_area_m2/1e6:.3f} км²)")
-
-    # === 6. Channel descriptions ===
-    band_descriptions = {
-        1: "255 x shadowMask x cos(Ig).clipped",
-        2: "cos(Ig).clipped (Температура)",
-        3: "binary_mask of cos(Ig)",
-        4: "shadowMask",
-        5: "SLOPE(deg)",
-        6: "DEM(km)",
-        7: "SDIST(km)"
-    }
-
-    # === 7. Read all channels ===
-    band_data = {}
-    for band_num in range(1, bands + 1):
-        band = dataset.GetRasterBand(band_num)
-        array = band.ReadAsArray()
-        array[~np.isfinite(array)] = np.nanmin(array)
-        band_data[band_num] = array
-
-    # === 8. Save PNG with grid ===
-    print("\n💾 Сохраняем каналы в PNG...")
-    for band_num, data in band_data.items():
-        fig, ax = plt.subplots(figsize=(10, 6))
-        cmap = "terrain" if band_num in [5, 6, 7] else "gray"
-        im = ax.imshow(data, cmap=cmap)
-        plt.colorbar(im, ax=ax, label="Значение пикселя")
-        ax.set_title(f"Канал {band_num}: {band_descriptions.get(band_num, 'Без описания')}")
-        ax.axis('off')
-
-        for r in range(tile_rows):
-            for c in range(tile_cols):
-                x = c * tile_width_px
-                y = r * tile_height_px
-                rect = plt.Rectangle((x, y), tile_width_px, tile_height_px, fill=False,
-                                     edgecolor='red', linewidth=1)
-                ax.add_patch(rect)
-
-        # Save to output/images directory
-        output_path = os.path.join(IMAGES_DIR, f"band_{band_num}.png")
-        plt.savefig(output_path, bbox_inches='tight')
-        plt.close()
-    print("✅ PNG-файлы сохранены.")
-
-    # === 9. Generate JSON tiles ===
-    dem = band_data[6]
-    slope = band_data[5]
-    tiles_json = []
-
-    for row in range(tile_rows):
-        for col in range(tile_cols):
-            x0 = col * tile_width_px
-            y0 = row * tile_height_px
-            x1 = x0 + tile_width_px
-            y1 = y0 + tile_height_px
-            if x1 > width or y1 > height:
-                continue
-
-            dem_tile = dem[y0:y1, x0:x1]
-            slope_tile = slope[y0:y1, x0:x1]
-
-            avg_dem = float(np.mean(dem_tile))
-            avg_slope = float(np.mean(slope_tile))
-            x_coord = origin_x + x0 * pixel_width
-            y_coord = origin_y + y0 * pixel_height
-
-            tile_json = {
-                "id": f"tile_{row}_{col}",
-                "x": round(x_coord, 2),
-                "y": round(y_coord, 2),
-                "размер_в_пикселях": [tile_width_px, tile_height_px],
-                "размер_в_метрах": {
-                    "ширина": round(tile_width_m, 2),
-                    "высота": round(tile_height_m, 2)
-                },
-                "площадь_м2": round(tile_area_m2, 2),
-                "средняя_высота": round(avg_dem, 3),
-                "средний_уклон": round(avg_slope, 3)
-            }
-
-            tiles_json.append(tile_json)
-
-    # === 10. Save JSON ===
-    base_filename = os.path.splitext(os.path.basename(image_path))[0]
-    json_path = os.path.join(OUTPUT_DIR, f"{base_filename}_tiles.json")
+    print(f"Image size: {width}x{height}")
+    print(f"Projection: {projection}")
     
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(tiles_json, f, indent=4, ensure_ascii=False)
+    # Инициализация процессора тайлов
+    tile_processor = TileProcessor(ds)
 
-    print(f"\n✅ Сохранено {len(tiles_json)} тайлов в {json_path}")
-    print("\n📌 Пример тайла:")
-    print(json.dumps(tiles_json[0], ensure_ascii=False, indent=4))
+    # Словарь для хранения данных слоев
+    layers_data = {}
+
+    # Обработка слоев с сохранением данных
+    layers_data['elevation'] = process_elevation_layer(ds)
+    layers_data['slope'] = process_slope_layer(ds)
+    layers_data['shadows'] = process_shadow_layer(ds)
+    layers_data['illumination'] = process_illumination_layer(ds)
+    # Рассчитываем лед только после того, как собрали остальные данные
+    layers_data['ice_probability'] = process_ice_layer(layers_data['elevation'], layers_data['slope'], layers_data['shadows'])
+
+    # --- Создание PNG визуализаций --- 
+    print("--- Создание PNG изображений ---")
+    save_elevation_png(layers_data.get('elevation'), output_prefix)
+    save_slope_png(layers_data.get('slope'), output_prefix)
+    save_shadows_png(layers_data.get('shadows'), output_prefix)
+    save_illumination_png(layers_data.get('illumination'), output_prefix)
+    save_ice_probability_png(layers_data.get('ice_probability'), output_prefix)
+
+    # Генерация тайлов
+    tiles = tile_processor.process_tiles(layers_data)
+
+    # Сохранение в JSON
+    output_json_filename = f"{output_prefix}_tiles.json"
+    output_json_path = JSON_DIR / output_json_filename
+    print(f"Сохранение JSON в: {output_json_path}")
+    with open(output_json_path, 'w') as f:
+        json.dump(tiles, f, indent=2)
     
+    ds = None
+    print(f"Файл {input_file_path.name} успешно обработан (префикс: {output_prefix}).")
     return True
 
-def main():
-    """
-    Main function to process all images in the input directory
-    """
-    # Check if input directory exists
-    if not os.path.exists(INPUT_DIR):
-        print(f"❌ Input directory not found: {INPUT_DIR}")
-        return
-    
-    # Get all files in the input directory
-    input_files = [f for f in os.listdir(INPUT_DIR) if os.path.isfile(os.path.join(INPUT_DIR, f))]
-    
-    if not input_files:
-        print(f"❌ No files found in input directory: {INPUT_DIR}")
-        print("Please place your image files in the input directory and try again.")
-        return
-    
-    print(f"Found {len(input_files)} files in input directory")
-    
-    # Process each file
-    for filename in input_files:
-        input_path = os.path.join(INPUT_DIR, filename)
-        try:
-            process_image(input_path)
-            print(f"✅ Successfully processed: {filename}")
-        except Exception as e:
-            print(f"❌ Error processing {filename}: {str(e)}")
+def process_elevation_layer(ds):
+    """Обработка высот с возвратом данных"""
+    print("Обработка высот...")
+    try:
+        band = ds.GetRasterBand(6)
+        if band is None:
+            print("Ошибка: Не найден 6-й канал (высоты).")
+            return None
+        dem = band.ReadAsArray().astype(np.float32)
+        # Проверяем, не пустой ли массив перед конвертацией
+        if dem.size == 0: 
+             print("Ошибка: Канал высот пуст.")
+             return None
+        dem *= 1000  # Конвертация в метры
+        # Используем np.nan для некорректных значений
+        dem[dem < -10000] = np.nan 
+        print("Данные высот обработаны.")
+        return dem
+    except Exception as e:
+        print(f"Ошибка при обработке высот: {e}")
+        return None
 
-if __name__ == "__main__":
-    main() 
+def process_slope_layer(ds):
+    """Обработка наклона с возвратом данных"""
+    print("Обработка наклона...")
+    try:
+        band = ds.GetRasterBand(5)
+        if band is None:
+            print("Ошибка: Не найден 5-й канал (наклон).")
+            return None
+        slope = band.ReadAsArray().astype(np.float32)
+        if slope.size == 0:
+             print("Ошибка: Канал наклона пуст.")
+             return None
+        slope[slope < 0] = np.nan # Используем np.nan
+        print("Данные наклона обработаны.")
+        return slope
+    except Exception as e:
+        print(f"Ошибка при обработке наклона: {e}")
+        return None
+
+def process_shadow_layer(ds):
+    """Обработка теней с возвратом данных"""
+    print("Обработка теней...")
+    try:
+        band = ds.GetRasterBand(4)
+        if band is None:
+            print("Ошибка: Не найден 4-й канал (тени).")
+            return None
+        shadows = band.ReadAsArray().astype(np.float32)
+        if shadows.size == 0:
+             print("Ошибка: Канал теней пуст.")
+             return None
+        # Можно добавить проверку на значения (например, только 0 и 1)
+        print("Данные теней обработаны.")
+        return shadows 
+    except Exception as e:
+        print(f"Ошибка при обработке теней: {e}")
+        return None
+
+def process_illumination_layer(ds):
+    """Обработка освещенности с возвратом данных"""
+    print("Обработка освещенности...")
+    try:
+        band = ds.GetRasterBand(2)
+        if band is None:
+            print("Ошибка: Не найден 2-й канал (освещенность).")
+            return None
+        illumination = band.ReadAsArray().astype(np.float32)
+        if illumination.size == 0:
+             print("Ошибка: Канал освещенности пуст.")
+             return None
+        illumination[illumination < 0] = np.nan # Используем np.nan
+        print("Данные освещенности обработаны.")
+        return illumination
+    except Exception as e:
+        print(f"Ошибка при обработке освещенности: {e}")
+        return None
+
+def process_ice_layer(dem, slope, shadows):
+    """Генерация данных по льду на основе других слоев"""
+    print("Расчет вероятности льда...")
+    if dem is None or slope is None or shadows is None:
+        print("Ошибка: Недостаточно данных для расчета вероятности льда (один из слоев = None).")
+        return None
+
+    try:
+        # Проверка на совпадение размеров массивов
+        if not (dem.shape == slope.shape == shadows.shape):
+             print(f"Ошибка: Размеры массивов не совпадают - DEM:{dem.shape}, Slope:{slope.shape}, Shadows:{shadows.shape}")
+             return None
+             
+        ice_prob = np.zeros_like(dem, dtype=np.float32)
+        # Условия расчета вероятности (могут быть скорректированы)
+        # Применяем маски NaN перед расчетами
+        valid_mask = ~np.isnan(dem) & ~np.isnan(slope) & ~np.isnan(shadows)
+        
+        ice_prob[valid_mask] += 0.4 * ((slope[valid_mask] < 5) & (slope[valid_mask] >= 0))
+        ice_prob[valid_mask] += 0.3 * (shadows[valid_mask] == 1)
+        ice_prob[valid_mask] += 0.3 * ((dem[valid_mask] > 0) & (dem[valid_mask] < 3000))
+        
+        # Устанавливаем NaN там, где были NaN во входных данных
+        ice_prob[~valid_mask] = np.nan 
+        print("Вероятность льда рассчитана.")
+        return np.clip(ice_prob, 0, 1)
+    except Exception as e:
+        print(f"Ошибка при расчете вероятности льда: {e}")
+        return None
+
+# --- Функции сохранения PNG изображений --- 
+
+def save_layer_png(data, filename_base, prefix, cmap, normalize=True):
+    """Общая функция для сохранения слоя в PNG"""
+    filename = f"{prefix}_{filename_base}.png"
+    if data is None:
+        print(f"Данные для {filename} отсутствуют (None), изображение не будет создано.")
+        return
+    if data.size == 0:
+        print(f"Данные для {filename} пустые, изображение не будет создано.")
+        return
+        
+    print(f"Создание изображения: {filename}...")
+    try:
+        # Нормализация данных для корректного отображения cmap (если требуется)
+        if normalize and not np.all(np.isnan(data)):
+            vmin = np.nanmin(data)
+            vmax = np.nanmax(data)
+            # Проверка на случай, если все значения одинаковые (кроме NaN)
+            if vmin == vmax:
+                 plot_data = data # Не нормализуем, если все значения одинаковые
+            else:
+                 # Ручная нормализация, игнорируя NaN
+                 # plot_data = (data - vmin) / (vmax - vmin)
+                 # Используем imshow с vmin/vmax для автоматической нормализации matplotlib
+                 plot_data = data
+        else:
+            plot_data = data
+            vmin = None
+            vmax = None
+
+        plt.figure(figsize=(10, 10))
+        plt.imshow(plot_data, cmap=cmap, vmin=vmin, vmax=vmax)
+        plt.axis('off')
+        output_path = IMAGES_DIR / filename # Используем префикс в имени файла
+        plt.savefig(output_path, bbox_inches='tight', pad_inches=0, dpi=150) # dpi можно настроить
+        plt.close()
+        print(f"Изображение {filename} успешно сохранено в {output_path}.")
+    except Exception as e:
+        print(f"Ошибка при создании изображения {filename}: {e}")
+
+def save_elevation_png(data, prefix):
+    save_layer_png(data, "elevation", prefix, cmap='terrain', normalize=False) # DEM обычно имеет свой диапазон
+
+def save_slope_png(data, prefix):
+    save_layer_png(data, "slope", prefix, cmap='viridis')
+
+def save_shadows_png(data, prefix):
+    # Тени (0 или 1), нормализация не нужна, используем бинарную карту
+    save_layer_png(data, "shadows", prefix, cmap='binary', normalize=False) 
+
+def save_illumination_png(data, prefix):
+    save_layer_png(data, "illumination", prefix, cmap='hot')
+
+def save_ice_probability_png(data, prefix):
+    # Вероятность от 0 до 1, используем vmin/vmax для корректной шкалы
+    save_layer_png(data, "ice_probability", prefix, cmap='Blues', normalize=False) 
+    # plt.imshow(data, cmap='Blues', vmin=0, vmax=1) # Альтернативный вариант для ice_probability
+
+# --- Основной блок --- 
+
+def main(input_file_arg: str, output_prefix_arg: str):
+    """Основной скрипт"""
+    print("Запуск основного скрипта...")
+    input_file_path = Path(input_file_arg)
+    
+    if not input_file_path.is_file():
+        print(f"Ошибка: Входной файл не найден или не является файлом: {input_file_path}")
+        return False
+        
+    print(f"Получен файл: {input_file_path}")
+    print(f"Получен префикс: {output_prefix_arg}")
+
+    # Запускаем обработку для одного файла
+    success = process_image(input_file_path, output_prefix_arg)
+
+    if success:
+        print("\nОбработка файла завершена успешно!")
+        print(f"Результаты сохранены в: {JSON_DIR} и {IMAGES_DIR}")
+    else:
+        print("\nОбработка файла завершена с ошибками.")
+
+    return success
+
+if __name__ == '__main__':
+    # --- ИЗМЕНЕНО: Парсинг аргументов командной строки --- 
+    parser = argparse.ArgumentParser(description='Обработка TIFF файла для создания слоев и JSON тайлов.')
+    parser.add_argument('input_file', type=str, help='Путь к входному TIFF файлу.')
+    parser.add_argument('output_prefix', type=str, help='Префикс для имен выходных файлов.')
+    
+    args = parser.parse_args()
+    # --- КОНЕЦ ИЗМЕНЕНИЯ --- 
+    
+    print(f"Запуск скрипта с аргументами: input_file='{args.input_file}', output_prefix='{args.output_prefix}'")
+
+    try:
+        # Передаем аргументы в main
+        success = main(args.input_file, args.output_prefix)
+        print(f"--- Python Script End (Success: {success}) ---")
+        sys.exit(0 if success else 1)
+    except Exception as e:
+        print(f"Критическая ошибка в __main__: {e}", file=sys.stderr) # Выводим ошибку в stderr
+        print(f"--- Python Script End (Critical Error) ---")
+        sys.exit(1)
