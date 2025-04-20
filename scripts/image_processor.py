@@ -14,19 +14,28 @@ matplotlib.use("Agg")
 
 # Определяем пути к директориям
 SCRIPT_DIR = Path(__file__).parent.absolute()
+PROJECT_ROOT = SCRIPT_DIR.parent  # Корневая директория проекта
+PUBLIC_DIR = PROJECT_ROOT / 'public'
+LAYERS_DIR = PUBLIC_DIR / 'images' / 'layers'
 OUTPUT_DIR = SCRIPT_DIR / 'output'
-IMAGES_DIR = OUTPUT_DIR / 'images'
 JSON_DIR = OUTPUT_DIR / 'json'
+IMAGES_DIR = OUTPUT_DIR / 'images'  # Добавляем новый путь
 
 print(f"Script directory: {SCRIPT_DIR}")
+print(f"Project root: {PROJECT_ROOT}")
+print(f"Public directory: {PUBLIC_DIR}")
+print(f"Layers directory: {LAYERS_DIR}")
 print(f"Output directory: {OUTPUT_DIR}")
-print(f"Images directory: {IMAGES_DIR}")
 print(f"JSON directory: {JSON_DIR}")
+print(f"Images directory: {IMAGES_DIR}")
 
 # Создаем директории если их нет
 OUTPUT_DIR.mkdir(exist_ok=True)
-IMAGES_DIR.mkdir(exist_ok=True)
 JSON_DIR.mkdir(exist_ok=True)
+PUBLIC_DIR.mkdir(exist_ok=True)
+(PUBLIC_DIR / 'images').mkdir(exist_ok=True)
+LAYERS_DIR.mkdir(exist_ok=True)
+IMAGES_DIR.mkdir(exist_ok=True)  # Создаем директорию для изображений
 
 class TileProcessor:
     def __init__(self, ds):
@@ -326,7 +335,7 @@ def save_layer_png(data, filename_base, prefix, cmap, normalize=True):
     if data.size == 0:
         print(f"Данные для {filename} пустые, изображение не будет создано.")
         return
-        
+
     print(f"Создание изображения: {filename}...")
     try:
         # Нормализация данных для корректного отображения cmap (если требуется)
@@ -337,22 +346,48 @@ def save_layer_png(data, filename_base, prefix, cmap, normalize=True):
             if vmin == vmax:
                  plot_data = data # Не нормализуем, если все значения одинаковые
             else:
-                 # Ручная нормализация, игнорируя NaN
-                 # plot_data = (data - vmin) / (vmax - vmin)
-                 # Используем imshow с vmin/vmax для автоматической нормализации matplotlib
                  plot_data = data
         else:
             plot_data = data
             vmin = None
             vmax = None
 
+        # Сохраняем версию с заголовком и легендой в public/images/layers
+        plt.figure(figsize=(12, 10))
+        title = {
+            'elevation': 'Карта высот рельефа',
+            'slope': 'Карта уклонов поверхности',
+            'shadows': 'Карта теней',
+            'illumination': 'Карта освещенности',
+            'ice_probability': 'Карта вероятности наличия льда'
+        }.get(filename_base, filename_base.capitalize())
+        
+        plt.title(f"{title} - {prefix}", pad=20, fontsize=14)
+        im = plt.imshow(plot_data, cmap=cmap, vmin=vmin, vmax=vmax)
+        cbar = plt.colorbar(im)
+        label = {
+            'elevation': 'Высота (м)',
+            'slope': 'Уклон (градусы)',
+            'shadows': 'Затенение (0-1)',
+            'illumination': 'Освещенность (%)',
+            'ice_probability': 'Вероятность наличия льда (0-1)'
+        }.get(filename_base, '')
+        cbar.set_label(label)
+        plt.axis('off')
+        output_path = LAYERS_DIR / filename
+        plt.savefig(output_path, bbox_inches='tight', pad_inches=0.5, dpi=150)
+        plt.close()
+        print(f"Изображение с легендой сохранено в {output_path}")
+
+        # Сохраняем версию без заголовка и легенды в scripts/output/images
         plt.figure(figsize=(10, 10))
         plt.imshow(plot_data, cmap=cmap, vmin=vmin, vmax=vmax)
         plt.axis('off')
-        output_path = IMAGES_DIR / filename # Используем префикс в имени файла
-        plt.savefig(output_path, bbox_inches='tight', pad_inches=0, dpi=150) # dpi можно настроить
+        output_path = IMAGES_DIR / filename
+        plt.savefig(output_path, bbox_inches='tight', pad_inches=0, dpi=150)
         plt.close()
-        print(f"Изображение {filename} успешно сохранено в {output_path}.")
+        print(f"Изображение без легенды сохранено в {output_path}")
+
     except Exception as e:
         print(f"Ошибка при создании изображения {filename}: {e}")
 
@@ -371,8 +406,7 @@ def save_illumination_png(data, prefix):
 
 def save_ice_probability_png(data, prefix):
     # Вероятность от 0 до 1, используем vmin/vmax для корректной шкалы
-    save_layer_png(data, "ice_probability", prefix, cmap='Blues', normalize=False) 
-    # plt.imshow(data, cmap='Blues', vmin=0, vmax=1) # Альтернативный вариант для ice_probability
+    save_layer_png(data, "ice_probability", prefix, cmap='Blues', normalize=False)
 
 # --- Основной блок --- 
 
@@ -393,7 +427,7 @@ def main(input_file_arg: str, output_prefix_arg: str):
 
     if success:
         print("\nОбработка файла завершена успешно!")
-        print(f"Результаты сохранены в: {JSON_DIR} и {IMAGES_DIR}")
+        print(f"Результаты сохранены в: {JSON_DIR} и {LAYERS_DIR}")
     else:
         print("\nОбработка файла завершена с ошибками.")
 
