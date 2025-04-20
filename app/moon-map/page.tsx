@@ -69,7 +69,7 @@ interface Layer {
   description: string
   enabled: boolean
   imagePath: string
-  type: 'height' | 'spectral' | 'slope' | 'ice'
+  type: 'height' | 'spectral' | 'slope' | 'ice' | 'shadows'
 }
 
 // Add interfaces for terrain and metadata
@@ -293,6 +293,40 @@ const TileInfoModal = ({ tile, onClose }: { tile: TileData | null; onClose: () =
   );
 };
 
+// Добавляем компонент для просмотра изображения
+const ImageViewerModal = ({ 
+  imagePath, 
+  title, 
+  onClose 
+}: { 
+  imagePath: string; 
+  title: string; 
+  onClose: () => void;
+}) => {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded-lg shadow-lg max-w-4xl w-full mx-4">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold">{title}</h2>
+          <button 
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-full"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="relative aspect-video">
+          <img
+            src={imagePath}
+            alt={title}
+            className="w-full h-full object-contain"
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function MoonMapPage() {
   // Get state and actions from store
   const {
@@ -489,7 +523,7 @@ export default function MoonMapPage() {
       name: "Рельеф местности",
       description: "Отображает высоту поверхности Луны. Темные области - низменности, светлые - возвышенности.",
       enabled: true,
-      imagePath: "/scripts/output/images/height.png",
+      imagePath: "/images/layers/height.png",
       type: "height"
     },
     {
@@ -497,7 +531,7 @@ export default function MoonMapPage() {
       name: "Спектральный анализ",
       description: "Показывает минералогический состав поверхности. Разные цвета соответствуют разным минералам.",
       enabled: false,
-      imagePath: "/scripts/output/images/spectral.png",
+      imagePath: "/images/layers/spectral.png",
       type: "spectral"
     },
     {
@@ -505,7 +539,7 @@ export default function MoonMapPage() {
       name: "Наклон поверхности",
       description: "Отображает угол наклона поверхности. Полезно для определения пригодности участка для строительства.",
       enabled: false,
-      imagePath: "/scripts/output/images/slope.png",
+      imagePath: "/images/layers/slope.png",
       type: "slope"
     },
     {
@@ -513,8 +547,16 @@ export default function MoonMapPage() {
       name: "Ледяные отложения",
       description: "Показывает предполагаемые места скопления водяного льда в кратерах.",
       enabled: false,
-      imagePath: "/scripts/output/images/ice.png",
+      imagePath: "/images/layers/ice.png",
       type: "ice"
+    },
+    {
+      id: "shadows",
+      name: "Тени",
+      description: "Показывает среднюю освещенность поверхности.",
+      enabled: false,
+      imagePath: "/images/layers/shadows.png",
+      type: "shadows"
     }
   ])
 
@@ -1653,13 +1695,17 @@ export default function MoonMapPage() {
               {layers.map((layer) => (
                 <div key={layer.id} className="flex items-center justify-between">
                   <button
-                    className="text-left flex-grow px-2 py-1 hover:bg-gray-100 rounded text-sm truncate"
-                    onClick={() => handleSelectLayerInfo(layer)}
-                    title={layer.name}
+                    className="text-left flex-grow px-2 py-1 hover:bg-gray-100 rounded text-sm truncate flex items-center"
+                    onClick={() => setSelectedImage({ path: layer.imagePath, title: layer.name })}
+                    title={`${layer.name}\n${layer.description}`}
                   >
-                    {layer.name}
+                    {getLayerIcon(layer.type)}
+                    <span className="ml-2">{layer.name}</span>
                   </button>
-                  <button className="ml-2 p-1 rounded hover:bg-gray-200" onClick={() => handleToggleLayer(layer.id)}>
+                  <button 
+                    className="ml-2 p-1 rounded hover:bg-gray-200" 
+                    onClick={() => handleToggleLayer(layer.id)}
+                  >
                     {layer.enabled ? <Eye size={16} /> : <EyeOff size={16} />}
                   </button>
                 </div>
@@ -1677,6 +1723,24 @@ export default function MoonMapPage() {
       </div>
     )
   }
+
+  // Добавляем функцию для получения иконок слоев
+  const getLayerIcon = (type: string) => {
+    switch (type) {
+      case 'height':
+        return '🗺️';
+      case 'spectral':
+        return '🌈';
+      case 'slope':
+        return '⛰️';
+      case 'shadows':
+        return '🌓';
+      case 'ice':
+        return '❄️';
+      default:
+        return '📍';
+    }
+  };
 
   // Обновим функцию renderRestrictions для правильной привязки к координатам и обработки активной/неактивной зоны
 
@@ -2317,50 +2381,89 @@ export default function MoonMapPage() {
 
   // Add handler for file selection
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, type: 'terrain' | 'metadata') => {
-    const files = e.target.files
+    const files = e.target.files;
     if (files && files.length > 0) {
       if (type === 'terrain') {
-        setSelectedFile(files[0])
+        setSelectedFile(files[0]);
         
         // Создаем FormData для отправки файла
-        const formData = new FormData()
-        formData.append('file', files[0])
+        const formData = new FormData();
+        formData.append('file', files[0]);
         
         try {
           // Отправляем файл на сервер для обработки
           const response = await fetch('/api/process-image', {
             method: 'POST',
             body: formData
-          })
+          });
           
           if (!response.ok) {
-            throw new Error('Ошибка при обработке изображения')
+            throw new Error('Ошибка при обработке изображения');
           }
           
-          const result = await response.json()
+          const result = await response.json();
+          const baseName = files[0].name.replace(/\.[^/.]+$/, ""); // Получаем имя файла без расширения
           
           // Обновляем слои с новыми путями к изображениям
-          setLayers(prevLayers => 
-            prevLayers.map(layer => ({
-              ...layer,
-              imagePath: `/scripts/output/images/${layer.type}.png`
-            }))
-          )
+          const newLayers: Layer[] = [
+            {
+              id: "elevation",
+              name: "Рельеф местности",
+              description: "Отображает высоту поверхности Луны. Темные области - низменности, светлые - возвышенности.",
+              enabled: true,
+              imagePath: `/images/layers/${baseName}_elevation.png`,
+              type: "height"
+            },
+            {
+              id: "slope",
+              name: "Наклон поверхности",
+              description: "Отображает угол наклона поверхности. Полезно для определения пригодности участка для строительства.",
+              enabled: false,
+              imagePath: `/images/layers/${baseName}_slope.png`,
+              type: "slope"
+            },
+            {
+              id: "illumination",
+              name: "Освещенность",
+              description: "Показывает уровень освещенности поверхности.",
+              enabled: false,
+              imagePath: `/images/layers/${baseName}_illumination.png`,
+              type: "spectral"
+            },
+            {
+              id: "shadows",
+              name: "Тени",
+              description: "Показывает затененные участки поверхности.",
+              enabled: false,
+              imagePath: `/images/layers/${baseName}_shadows.png`,
+              type: "shadows"
+            },
+            {
+              id: "ice",
+              name: "Ледяные отложения",
+              description: "Показывает предполагаемые места скопления водяного льда в кратерах.",
+              enabled: false,
+              imagePath: `/images/layers/${baseName}_ice_probability.png`,
+              type: "ice"
+            }
+          ];
+          
+          setLayers(newLayers);
           
           // Показываем сообщение об успехе
-          setErrorMessage("✅ Изображение успешно обработано")
-          setTimeout(() => setErrorMessage(null), 3000)
+          setErrorMessage("✅ Изображение успешно обработано");
+          setTimeout(() => setErrorMessage(null), 3000);
           
         } catch (error) {
-          console.error('Error:', error)
-          setErrorMessage("❌ Ошибка при обработке изображения")
-          setTimeout(() => setErrorMessage(null), 3000)
+          console.error('Error:', error);
+          setErrorMessage("❌ Ошибка при обработке изображения");
+          setTimeout(() => setErrorMessage(null), 3000);
         }
       } else {
-        setSelectedMetadataFile(files[0])
+        setSelectedMetadataFile(files[0]);
       }
     }
-  }
+  };
 
   // Add handler for file drop
   const handleFileDrop = (e: React.DragEvent<HTMLDivElement>, type: 'terrain' | 'metadata') => {
@@ -2638,6 +2741,41 @@ export default function MoonMapPage() {
 
   // В основном компоненте добавляем состояние для отображения координат при наведении
   const [hoveredTile, setHoveredTile] = useState<TileData | null>(null);
+
+  // В основном компоненте добавляем состояния для просмотра изображений
+  const [selectedImage, setSelectedImage] = useState<{path: string; title: string} | null>(null);
+
+  // Добавляем эффект для обновления путей к изображениям при изменении selectedArea
+  useEffect(() => {
+    if (selectedArea) {
+      setLayers(prevLayers => prevLayers.map(layer => {
+        let filename;
+        switch (layer.type) {
+          case 'height':
+            filename = 'elevation';
+            break;
+          case 'spectral':
+            filename = 'illumination';
+            break;
+          case 'slope':
+            filename = 'slope';
+            break;
+          case 'ice':
+            filename = 'ice_probability';
+            break;
+          case 'shadows':
+            filename = 'shadows';
+            break;
+          default:
+            filename = layer.type;
+        }
+        return {
+          ...layer,
+          imagePath: `/images/layers/${selectedArea}_${filename}.png`
+        };
+      }));
+    }
+  }, [selectedArea]);
 
   return (
     <div className="min-h-screen bg-white">
@@ -4300,6 +4438,15 @@ export default function MoonMapPage() {
       {/* В JSX добавляем компонент HoveredTileInfo */}
       {hoveredTile && (
         <HoveredTileInfo tile={hoveredTile} position={hoveredCellState} />
+      )}
+      
+      {/* Добавляем модальное окно для просмотра изображений */}
+      {selectedImage && (
+        <ImageViewerModal
+          imagePath={selectedImage.path}
+          title={selectedImage.title}
+          onClose={() => setSelectedImage(null)}
+        />
       )}
     </div>
   )
