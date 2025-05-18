@@ -1,0 +1,12 @@
+[33mcdd7a4a[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mreal_snimok_ars[m[33m, [m[1;31morigin/real_snimok_ars[m[33m, [m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{0}: reset: moving to HEAD~1
+[33m2fc5d31[m HEAD@{1}: commit: feat: добавлен компонент RealImage для отображения реального снимка поверхности
+[33mcdd7a4a[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mreal_snimok_ars[m[33m, [m[1;31morigin/real_snimok_ars[m[33m, [m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{2}: checkout: moving from real-snimok-arseniy2 to real_snimok_ars
+[33m8bbf9fe[m[33m ([m[1;31morigin/real-snimok-arseniy2[m[33m, [m[1;32mreal-snimok-arseniy2[m[33m)[m HEAD@{3}: pull origin real-snimok-arseniy2: Fast-forward
+[33m9461291[m HEAD@{4}: checkout: moving from real-snimok-arseniy to real-snimok-arseniy2
+[33m5ac4ff2[m[33m ([m[1;32mreal-snimok-arseniy[m[33m)[m HEAD@{5}: reset: moving to origin/master
+[33mcb2a825[m[33m ([m[1;31morigin/render-tiff-image-sofia[m[33m, [m[1;32mmaster[m[33m, [m[1;32mars[m[33m)[m HEAD@{6}: checkout: moving from real-snimok-arseniy to real-snimok-arseniy
+[33mcb2a825[m[33m ([m[1;31morigin/render-tiff-image-sofia[m[33m, [m[1;32mmaster[m[33m, [m[1;32mars[m[33m)[m HEAD@{7}: checkout: moving from ars to real-snimok-arseniy
+[33mcb2a825[m[33m ([m[1;31morigin/render-tiff-image-sofia[m[33m, [m[1;32mmaster[m[33m, [m[1;32mars[m[33m)[m HEAD@{8}: checkout: moving from ars to ars
+[33mcb2a825[m[33m ([m[1;31morigin/render-tiff-image-sofia[m[33m, [m[1;32mmaster[m[33m, [m[1;32mars[m[33m)[m HEAD@{9}: checkout: moving from ars to ars
+[33mcb2a825[m[33m ([m[1;31morigin/render-tiff-image-sofia[m[33m, [m[1;32mmaster[m[33m, [m[1;32mars[m[33m)[m HEAD@{10}: checkout: moving from master to ars
+[33mcb2a825[m[33m ([m[1;31morigin/render-tiff-image-sofia[m[33m, [m[1;32mmaster[m[33m, [m[1;32mars[m[33m)[m HEAD@{11}: clone: from https://github.com/Or3yn/ITPlanet
