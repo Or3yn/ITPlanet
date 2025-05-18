@@ -12,6 +12,7 @@ import { AlertCircle, Check, X, Save, Edit, Trash2, ChevronRight, ChevronLeft, E
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useMoonMapStore } from '@/app/store/moon-map-store'
+import { Footer } from "@/components/ui/footer"
 
 // Определение типов объектов и их размеров
 interface ObjectSize {
@@ -4557,6 +4558,8 @@ export default function MoonMapPage() {
           onClose={() => setSelectedImage(null)}
         />
       )}
+
+      <Footer />
     </div>
   )
 }
