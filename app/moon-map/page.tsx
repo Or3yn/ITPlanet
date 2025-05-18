@@ -1298,8 +1298,8 @@ export default function MoonMapPage() {
     const activeLayerData = layers.find(l => l.isActive);
 
     // Вычисляем начальное смещение для центрирования
-    const initialOffsetX = (window.innerWidth - TOTAL_SIZE) / 2;
-    const initialOffsetY = (window.innerHeight - TOTAL_SIZE) / 2;
+    const initialOffsetX = (windowSize.width - TOTAL_SIZE) / 2;
+    const initialOffsetY = (windowSize.height - TOTAL_SIZE) / 2;
 
     for (let y = 0; y < GRID_SIZE; y++) {
       for (let x = 0; x < GRID_SIZE; x++) {
@@ -2868,6 +2868,21 @@ export default function MoonMapPage() {
         x: initialX,
         y: initialY
       });
+    }
+  }, []);
+
+  // Добавить после других useState:
+  const [windowSize, setWindowSize] = useState<{ width: number; height: number }>({ width: 1200, height: 800 });
+
+  // Добавить useEffect для обновления windowSize:
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const handleResize = () => {
+        setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+      };
+      handleResize();
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
     }
   }, []);
 
