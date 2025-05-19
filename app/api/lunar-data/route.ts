@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const sanitizedArea = area.replace(/[^a-zA-Z0-9-_]/g, '')
     
     // Define the path to the JSON file
-    const filePath = path.join(process.cwd(), 'scripts', 'output', 'json', `${sanitizedArea}_tiles.json`)
+    const filePath = path.join(process.cwd(), 'public', 'output', 'json', `${sanitizedArea}_tiles.json`)
     
     // Check if the file exists
     if (!fs.existsSync(filePath)) {

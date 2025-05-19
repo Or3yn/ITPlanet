@@ -16,14 +16,24 @@ matplotlib.use("Agg")
 SCRIPT_DIR = Path(__file__).parent.absolute()
 PROJECT_ROOT = SCRIPT_DIR.parent  # Корневая директория проекта
 PUBLIC_DIR = PROJECT_ROOT / 'public'
-LAYERS_DIR = PUBLIC_DIR / 'images' / 'layers'
-OUTPUT_DIR = SCRIPT_DIR / 'output'
-JSON_DIR = OUTPUT_DIR / 'json'
-IMAGES_DIR = OUTPUT_DIR / 'images'  # Добавляем новый путь
+OUTPUT_DIR = PUBLIC_DIR / 'output'  # Путь к директории output
+INPUT_DIR = PUBLIC_DIR / 'input'    # Путь к директории input
+
+# Создаем подкаталоги
+IMAGES_DIR = OUTPUT_DIR / 'images'  # Путь к директории images
+JSON_DIR = OUTPUT_DIR / 'json'      # Путь к директории json
+LAYERS_DIR = OUTPUT_DIR / 'layers'   # Путь к директории layers
+
+# Создаем директории, если они не существуют
+IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+JSON_DIR.mkdir(parents=True, exist_ok=True)
+LAYERS_DIR.mkdir(parents=True, exist_ok=True)
+INPUT_DIR.mkdir(parents=True, exist_ok=True)  # Создаем директорию для входных файлов
 
 print(f"Script directory: {SCRIPT_DIR}")
 print(f"Project root: {PROJECT_ROOT}")
 print(f"Public directory: {PUBLIC_DIR}")
+print(f"Input directory: {INPUT_DIR}")
 print(f"Layers directory: {LAYERS_DIR}")
 print(f"Output directory: {OUTPUT_DIR}")
 print(f"JSON directory: {JSON_DIR}")
@@ -33,7 +43,6 @@ print(f"Images directory: {IMAGES_DIR}")
 OUTPUT_DIR.mkdir(exist_ok=True)
 JSON_DIR.mkdir(exist_ok=True)
 PUBLIC_DIR.mkdir(exist_ok=True)
-(PUBLIC_DIR / 'images').mkdir(exist_ok=True)
 LAYERS_DIR.mkdir(exist_ok=True)
 IMAGES_DIR.mkdir(exist_ok=True)  # Создаем директорию для изображений
 
@@ -191,7 +200,7 @@ def process_image(input_file_path: Path, output_prefix: str):
     layers_data['shadows'] = process_shadow_layer(ds)
     layers_data['illumination'] = process_illumination_layer(ds)
     # Рассчитываем лед только после того, как собрали остальные данные
-    layers_data['ice_probability'] = process_ice_layer(layers_data['elevation'], layers_data['slope'], layers_data['shadows'])
+    layers_data['ice'] = process_ice_layer(layers_data['elevation'], layers_data['slope'], layers_data['shadows'])
 
     # --- Создание PNG визуализаций --- 
     print("--- Создание PNG изображений ---")
@@ -199,7 +208,7 @@ def process_image(input_file_path: Path, output_prefix: str):
     save_slope_png(layers_data.get('slope'), output_prefix)
     save_shadows_png(layers_data.get('shadows'), output_prefix)
     save_illumination_png(layers_data.get('illumination'), output_prefix)
-    save_ice_probability_png(layers_data.get('ice_probability'), output_prefix)
+    save_ice_png(layers_data.get('ice'), output_prefix)
 
     # Генерация тайлов
     tiles = tile_processor.process_tiles(layers_data)
@@ -359,7 +368,7 @@ def save_layer_png(data, filename_base, prefix, cmap, normalize=True):
             'slope': 'Карта уклонов поверхности',
             'shadows': 'Карта теней',
             'illumination': 'Карта освещенности',
-            'ice_probability': 'Карта вероятности наличия льда'
+            'ice': 'Карта вероятности наличия льда'
         }.get(filename_base, filename_base.capitalize())
         
         plt.title(f"{title} - {prefix}", pad=20, fontsize=14)
@@ -370,7 +379,7 @@ def save_layer_png(data, filename_base, prefix, cmap, normalize=True):
             'slope': 'Уклон (градусы)',
             'shadows': 'Затенение (0-1)',
             'illumination': 'Освещенность (%)',
-            'ice_probability': 'Вероятность наличия льда (0-1)'
+            'ice': 'Вероятность наличия льда (0-1)'
         }.get(filename_base, '')
         cbar.set_label(label)
         plt.axis('off')
@@ -404,9 +413,8 @@ def save_shadows_png(data, prefix):
 def save_illumination_png(data, prefix):
     save_layer_png(data, "illumination", prefix, cmap='hot')
 
-def save_ice_probability_png(data, prefix):
-    # Вероятность от 0 до 1, используем vmin/vmax для корректной шкалы
-    save_layer_png(data, "ice_probability", prefix, cmap='Blues', normalize=False)
+def save_ice_png(data, prefix):
+    save_layer_png(data, "ice", prefix, cmap='Blues', normalize=False)
 
 # --- Основной блок --- 
 
@@ -450,6 +458,6 @@ if __name__ == '__main__':
         print(f"--- Python Script End (Success: {success}) ---")
         sys.exit(0 if success else 1)
     except Exception as e:
-        print(f"Критическая ошибка в __main__: {e}", file=sys.stderr) # Выводим ошибку в stderr
+        print(f"CRITIC ошибка в __main__: {e}", file=sys.stderr) # Выводим ошибку в stderr
         print(f"--- Python Script End (Critical Error) ---")
         sys.exit(1)
