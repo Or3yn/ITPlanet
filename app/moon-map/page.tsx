@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useMoonMapStore } from '@/app/store/moon-map-store'
 import { Footer } from "@/components/ui/footer"
+import { useLocationFilter } from '../components/LocationFilter';
 
 // Определение типов объектов и их размеров
 interface ObjectSize {
@@ -1163,7 +1164,7 @@ export default function MoonMapPage() {
     alert("Отчет успешно создан и скачан")
   }
 
-  // Обработчик применения фильтров
+    // Обработчик применения фильтров
   const handleApplyFilters = () => {
     // Check if any filter is selected
     const anyFilterSelected = Object.values(areaFilters).some((value) => value)
@@ -1174,14 +1175,6 @@ export default function MoonMapPage() {
     }
 
     setFiltersApplied(true)
-    
-    // If sunlight filter is selected, automatically select Malapert Mountain
-    // and set it as the only available area
-    if (areaFilters.sunlight) {
-      setSelectedArea("malapert")
-      // Make Malapert the only selected area when sunlight filter is active
-      setSelectedAreas(["malapert"])
-    }
   }
 
   // Обработчик редактирования маршрута
@@ -2897,7 +2890,7 @@ export default function MoonMapPage() {
       return () => window.removeEventListener('resize', handleResize);
     }
   }, []);
-
+            
   // Добавляем функцию проверки файлов
   const checkInputFiles = async () => {
     try {
@@ -2924,6 +2917,12 @@ export default function MoonMapPage() {
       console.error('Error checking input files:', error);
     }
   };
+            
+  // Add location filtering
+  const locationFilterState = useLocationFilter({
+    activeFilters: areaFilters,
+    filtersApplied
+  });
 
   return (
     <div className="min-h-screen bg-white">
@@ -2979,122 +2978,29 @@ export default function MoonMapPage() {
                   спектральный анализ и информацию о наличии водяного льда.
                 </p>
                 <div className="flex flex-wrap gap-3 mb-4">
-                  <button
-                    className={`px-4 py-2 ${
-                      selectedAreas.includes("shackleton") 
-                        ? "bg-blue-600 text-white" 
-                        : filtersApplied && areaFilters.sunlight
-                          ? "bg-gray-400 text-gray-600 cursor-not-allowed opacity-60" 
-                          : "bg-gray-100 text-gray-800"
-                    } rounded-md hover:${filtersApplied && areaFilters.sunlight ? "" : "bg-blue-200"} transition-colors`}
-                    onClick={() => {
-                      // Если фильтр освещенности применен, то кратер Шеклтон недоступен
-                      if (filtersApplied && areaFilters.sunlight) return;
-                      
-                      // Toggle selection for multi-select
-                      if (selectedAreas.includes("shackleton")) {
-                        setSelectedAreas(selectedAreas.filter(area => area !== "shackleton"))
-                      } else {
-                        setSelectedAreas([...selectedAreas, "shackleton"])
-                      }
-                      setSelectedArea("shackleton")
-                    }}
-                    disabled={filtersApplied && areaFilters.sunlight}
-                  >
-                    Кратер Шеклтон
-                  </button>
-                  <button
-                    className={`px-4 py-2 ${
-                      selectedAreas.includes("cabeus") 
-                        ? "bg-blue-600 text-white" 
-                        : filtersApplied && areaFilters.sunlight
-                          ? "bg-gray-400 text-gray-600 cursor-not-allowed opacity-60" 
-                          : "bg-gray-100 text-gray-800"
-                    } rounded-md hover:${filtersApplied && areaFilters.sunlight ? "" : "bg-blue-200"} transition-colors`}
-                    onClick={() => {
-                      // Если фильтр освещенности применен, то кратер Кабеус недоступен
-                      if (filtersApplied && areaFilters.sunlight) return;
-                      
-                      if (selectedAreas.includes("cabeus")) {
-                        setSelectedAreas(selectedAreas.filter(area => area !== "cabeus"))
-                      } else {
-                        setSelectedAreas([...selectedAreas, "cabeus"])
-                      }
-                      setSelectedArea("cabeus")
-                    }}
-                    disabled={filtersApplied && areaFilters.sunlight}
-                  >
-                    Кратер Кабеус
-                  </button>
-                  <button
-                    className={`px-4 py-2 ${
-                      selectedAreas.includes("haworth") 
-                        ? "bg-blue-600 text-white" 
-                        : filtersApplied && areaFilters.sunlight
-                          ? "bg-gray-400 text-gray-600 cursor-not-allowed opacity-60" 
-                          : "bg-gray-100 text-gray-800"
-                    } rounded-md hover:${filtersApplied && areaFilters.sunlight ? "" : "bg-blue-200"} transition-colors`}
-                    onClick={() => {
-                      // Если фильтр освещенности применен, то плато Хаворт недоступно
-                      if (filtersApplied && areaFilters.sunlight) return;
-                      
-                      if (selectedAreas.includes("haworth")) {
-                        setSelectedAreas(selectedAreas.filter(area => area !== "haworth"))
-                      } else {
-                        setSelectedAreas([...selectedAreas, "haworth"])
-                      }
-                      setSelectedArea("haworth")
-                    }}
-                    disabled={filtersApplied && areaFilters.sunlight}
-                  >
-                    Плато Хаворт
-                  </button>
-                  <button
-                    className={`px-4 py-2 ${
-                      selectedAreas.includes("malapert") || (filtersApplied && areaFilters.sunlight) 
-                        ? "bg-blue-600 text-white" 
-                        : "bg-gray-100 text-gray-800"
-                    } rounded-md hover:bg-blue-200 transition-colors`}
-                    onClick={() => {
-                      if (selectedAreas.includes("malapert")) {
-                        // Если фильтр освещенности применен, нельзя снять выбор с горы Малаперт
-                        if (filtersApplied && areaFilters.sunlight) return;
-                        
-                        setSelectedAreas(selectedAreas.filter(area => area !== "malapert"))
-                      } else {
-                        setSelectedAreas([...selectedAreas, "malapert"])
-                      }
-                      setSelectedArea("malapert")
-                    }}
-                  >
-                    Гора Малаперт
-                  </button>
-                  
-                  {/* Display uploaded terrain areas as buttons with the same style */}
-                  {terrainUploads.map((upload) => (
+                  {Object.values(locationFilterState).map(({ isActive, location }) => (
                     <button
-                      key={upload.id}
+                      key={location.id}
                       className={`px-4 py-2 ${
-                        selectedAreas.includes(upload.name) 
-                          ? "bg-blue-600 text-white" 
-                          : filtersApplied && areaFilters.sunlight
-                            ? "bg-gray-400 text-gray-600 cursor-not-allowed opacity-60" 
+                        selectedAreas.includes(location.name)
+                          ? "bg-blue-600 text-white"
+                          : !isActive
+                            ? "bg-gray-400 text-gray-600 cursor-not-allowed opacity-60"
                             : "bg-gray-100 text-gray-800"
-                      } rounded-md hover:${filtersApplied && areaFilters.sunlight ? "" : "bg-blue-200"} transition-colors`}
+                      } rounded-md hover:${!isActive ? "" : "bg-blue-200"} transition-colors`}
                       onClick={() => {
-                        // Если фильтр освещенности применен, то загруженные участки недоступны
-                        if (filtersApplied && areaFilters.sunlight) return;
+                        if (!isActive) return;
                         
-                        if (selectedAreas.includes(upload.name)) {
-                          setSelectedAreas(selectedAreas.filter(area => area !== upload.name))
+                        if (selectedAreas.includes(location.name)) {
+                          setSelectedAreas(selectedAreas.filter(area => area !== location.name));
                         } else {
-                          setSelectedAreas([...selectedAreas, upload.name])
+                          setSelectedAreas([...selectedAreas, location.name]);
                         }
-                        setSelectedArea(upload.name)
+                        setSelectedArea(location.name);
                       }}
-                      disabled={filtersApplied && areaFilters.sunlight}
+                      disabled={!isActive}
                     >
-                      {upload.name}
+                      {location.displayName}
                     </button>
                   ))}
                 </div>
@@ -3335,14 +3241,6 @@ export default function MoonMapPage() {
                   });
                   // Сбрасываем состояние применения фильтров
                   setFiltersApplied(false);
-                  
-                  // Если пользователь сбросил фильтры, то восстанавливаем доступность всех участков
-                  if (selectedAreas.length === 1 && selectedAreas[0] === "malapert") {
-                    // Если была выбрана только гора Малаперт (из-за фильтра), добавляем Шеклтон
-                    setSelectedAreas(["malapert", "shackleton"]);
-                    // Можно оставить выбранным Малаперт или переключиться на Шеклтон
-                    // setSelectedArea("shackleton");
-                  }
                 }}
               >
                 Сбросить фильтры
@@ -3387,28 +3285,17 @@ export default function MoonMapPage() {
                     value={selectedArea}
                     onChange={(e) => setSelectedArea(e.target.value)}
                   >
-                    {/* Если применен фильтр освещённости, показываем только гору Малаперт */}
-                    {filtersApplied && areaFilters.sunlight ? (
-                      <option value="malapert">Гора Малаперт</option>
-                    ) : (
-                      selectedAreas.map(area => (
-                        <option key={area} value={area}>
-                          {area === "shackleton" 
-                            ? "Кратер Шеклтон" 
-                            : area === "cabeus" 
-                              ? "Кратер Кабеус" 
-                              : area === "haworth" 
-                                ? "Плато Хаворт" 
-                                : area === "malapert" 
-                                  ? "Гора Малаперт" 
-                                  : area}
+                    {Object.values(locationFilterState)
+                      .filter(({ isActive }) => isActive)
+                      .map(({ location }) => (
+                        <option key={location.id} value={location.name}>
+                          {location.displayName}
                         </option>
-                      ))
-                    )}
+                      ))}
                   </select>
                   <p className="mt-1 text-sm text-gray-500">
-                    {filtersApplied && areaFilters.sunlight 
-                      ? "Доступна только гора Малаперт, так как применён фильтр максимальной освещенности" 
+                    {filtersApplied 
+                      ? "Показаны только участки, соответствующие выбранным фильтрам" 
                       : "Выберите из списка для просмотра одного из участков базы"}
                   </p>
                 </div>
@@ -3855,36 +3742,7 @@ export default function MoonMapPage() {
                             />
                           )}
 
-                          {/* Filtered areas overlay */}
-                          {filtersApplied && (
-                            <div className="absolute inset-0 grid grid-cols-20 grid-rows-20 z-20">
-                              {Array.from({ length: 400 }).map((_, index) => {
-                                // Определяем, является ли клетка частью горы Малаперт (примерно в правой верхней четверти)
-                                const col = index % 20;
-                                const row = Math.floor(index / 20);
-                                const isMalapertArea = areaFilters.sunlight && 
-                                  col >= 12 && col <= 19 && row >= 0 && row <= 7;
-                                
-                                return (
-                                  <div
-                                    key={`filter-${index}`}
-                                    className={`${
-                                      // Если фильтр освещенности активен, показываем только гору Малаперт
-                                      areaFilters.sunlight
-                                        ? isMalapertArea
-                                          ? "bg-yellow-400 bg-opacity-20" // Область горы Малаперт (с максимальной освещенностью)
-                                          : "bg-black bg-opacity-60"      // Остальные затемненные области
-                                        : // Для других фильтров используем случайную генерацию как раньше
-                                          Math.random() > 0.7 
-                                            ? "bg-green-500 bg-opacity-20" 
-                                            : "bg-black bg-opacity-40"
-                                    }`}
-                                  ></div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
+                                                                                </div>
 
                         {/* Рендер ограничений активной зоны */}
                         {renderRestrictions()}
