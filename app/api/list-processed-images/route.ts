@@ -3,8 +3,8 @@ import fs from 'fs';
 import path from 'path';
 
 export async function GET(request: Request) {
-  const imagesDir = path.join(process.cwd(), 'scripts', 'output', 'images');
-  const jsonDir = path.join(process.cwd(), 'scripts', 'output', 'json');
+  const imagesDir = path.join(process.cwd(), 'public', 'output', 'images');
+  const jsonDir = path.join(process.cwd(), 'public', 'output', 'json');
   console.log(`API: Checking images directory: ${imagesDir}`);
 
   try {

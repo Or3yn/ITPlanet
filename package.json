@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "start:8080": "cross-env PORT=8080 next start"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

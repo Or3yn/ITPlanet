@@ -27,8 +27,8 @@ export async function POST(request: Request) {
         outputPrefix = `processed_${Date.now()}`;
     }
 
-    const inputDir = path.join(process.cwd(), 'scripts', 'input')
-    const outputDir = path.join(process.cwd(), 'scripts', 'output')
+    const inputDir = path.join(process.cwd(), 'public', 'input')
+    const outputDir = path.join(process.cwd(), 'public', 'output')
     const imagesDir = path.join(outputDir, 'images')
     const jsonDir = path.join(outputDir, 'json')
 
@@ -174,7 +174,7 @@ export async function POST(request: Request) {
             `${outputPrefix}_slope.png`,
             `${outputPrefix}_shadows.png`,
             `${outputPrefix}_illumination.png`,
-            `${outputPrefix}_ice_probability.png`
+            `${outputPrefix}_ice.png`
         ];
         const expectedJsonFile = `${outputPrefix}_tiles.json`;
 
