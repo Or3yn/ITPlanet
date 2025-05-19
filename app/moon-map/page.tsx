@@ -189,7 +189,7 @@ interface TileData {
       max: number;
       min: number;
     };
-    ice_probability: {
+    ice: {
       mean: number;
       max: number;
       min: number;
@@ -283,9 +283,9 @@ const TileInfoModal = ({ tile, onClose }: { tile: TileData | null; onClose: () =
               <div className="bg-gray-50 p-3 rounded">
                 <div className="font-medium text-sm mb-1">Вероятность льда</div>
                 <div className="text-sm">
-                  <div>Средняя: {(tile.layers.ice_probability.mean * 100).toFixed(2)}%</div>
-                  <div>Мин: {(tile.layers.ice_probability.min * 100).toFixed(2)}%</div>
-                  <div>Макс: {(tile.layers.ice_probability.max * 100).toFixed(2)}%</div>
+                  <div>Средняя: {(tile.layers.ice.mean * 100).toFixed(2)}%</div>
+                  <div>Мин: {(tile.layers.ice.min * 100).toFixed(2)}%</div>
+                  <div>Макс: {(tile.layers.ice.max * 100).toFixed(2)}%</div>
                 </div>
               </div>
             </div>
@@ -458,6 +458,7 @@ export default function MoonMapPage() {
   const [selectedMetadata, setSelectedMetadata] = useState<Metadata | null>(null)
   const [editableMetadata, setEditableMetadata] = useState<string>("")
   const [selectedMetadataFile, setSelectedMetadataFile] = useState<File | null>(null)
+  const [baseName, setBaseName] = useState<string>('');
 
   // UI state
   const [sideMenuOpen, setSideMenuOpen] = useState(true)
@@ -552,8 +553,8 @@ export default function MoonMapPage() {
       name: "Рельеф местности",
       description: "Отображает высоту поверхности Луны. Темные области - низменности, светлые - возвышенности.",
       enabled: true,
-      imagePath: "/public/images/layers/height.png",
-      rawImagePath: "/scripts/output/images/height.png",
+      imagePath: "/output/images/height.png",
+      rawImagePath: `/output/layers/${baseName}_elevation.png`,
       type: "height",
       isActive: true,
     },
@@ -562,8 +563,8 @@ export default function MoonMapPage() {
       name: "Спектральный анализ",
       description: "Показывает минералогический состав поверхности. Разные цвета соответствуют разным минералам.",
       enabled: false,
-      imagePath: "/public/images/layers/spectral.png",
-      rawImagePath: "/scripts/output/images/spectral.png",
+      imagePath: "/output/images/spectral.png",
+      rawImagePath: `/output/layers/${baseName}_illumination.png`,
       type: "spectral",
       isActive: false,
     },
@@ -572,19 +573,19 @@ export default function MoonMapPage() {
       name: "Наклон поверхности",
       description: "Отображает угол наклона поверхности. Полезно для определения пригодности участка для строительства.",
       enabled: false,
-      imagePath: "/public/images/layers/slope.png",
-      rawImagePath: "/scripts/output/images/slope.png",
+      imagePath: "/output/images/slope.png",
+      rawImagePath: `/output/layers/${baseName}_slope.png`,
       type: "slope",
       isActive: false,
     },
     {
-      id: "ice",
+      id: "ice_probability",
       name: "Ледяные отложения",
-      description: "Показывает предполагаемые места скопления водяного льда в кратерах.",
+      description: "Показывает вероятность наличия льда на поверхности.",
       enabled: false,
-      imagePath: "/public/images/layers/ice.png",
-      rawImagePath: "/scripts/output/images/ice.png",
-      type: "ice",
+      imagePath: `/output/layers/${baseName}_ice_probability.png`,
+      rawImagePath: `/output/images/${baseName}_ice_probability.png`,
+      type: "spectral",
       isActive: false,
     },
     {
@@ -592,8 +593,8 @@ export default function MoonMapPage() {
       name: "Тени",
       description: "Показывает среднюю освещенность поверхности.",
       enabled: false,
-      imagePath: "/public/images/layers/shadows.png",
-      rawImagePath: "/scripts/output/images/shadows.png",
+      imagePath: "/output/images/shadows.png",
+      rawImagePath: `/output/layers/${baseName}_shadows.png`,
       type: "shadows",
       isActive: false,
     }
@@ -1254,18 +1255,26 @@ export default function MoonMapPage() {
   }
 
   // Обработчик переключения слоя
-  const handleToggleLayer = (layerId: string) => {
-    console.log('Toggling layer:', layerId); // Добавим логирование
+  const handleToggleLayer = (layerId: string) => { 
+    console.log('Toggling layer:', layerId); // Логирование
     setLayers(prevLayers => prevLayers.map(layer => {
-      if (layer.id === layerId) {
+      const computedLayerId = `${baseName}_${layer.id}`; // Составляем новое имя слоя
+  
+      if (computedLayerId === layerId) {
         // Если слой уже активен, деактивируем его
         if (layer.isActive) {
           console.log('Deactivating layer:', layer.id);
           return { ...layer, isActive: false };
         }
         // Если слой становится активным, деактивируем все остальные
-        console.log('Activating layer:', layer.id, 'with rawImagePath:', layer.rawImagePath);
-        return { ...layer, isActive: true };
+        const updatedLayer = { 
+          ...layer, 
+          isActive: true,
+          rawImagePath: `/output/images/${baseName}_${layer.id}.png`,
+          imagePath: `/output/images/${baseName}_${layer.id}.png`
+        };
+        console.log('Activating layer:', layer.id, 'with rawImagePath:', updatedLayer.rawImagePath);
+        return updatedLayer;
       }
       // Деактивируем все остальные слои
       return { ...layer, isActive: false };
@@ -1764,7 +1773,7 @@ export default function MoonMapPage() {
                   </button>
                   <button 
                     className="ml-2 p-1 rounded hover:bg-gray-200" 
-                    onClick={() => handleToggleLayer(layer.id)}
+                    onClick={() => handleToggleLayer(`${baseName}_${layer.id}`)}
                   >
                     {layer.enabled ? <Eye size={16} /> : <EyeOff size={16} />}
                   </button>
@@ -2462,17 +2471,18 @@ export default function MoonMapPage() {
           }
           
           const result = await response.json();
-          const baseName = files[0].name.replace(/\.[^/.]+$/, ""); // Получаем имя файла без расширения
+          const newBaseName = files[0].name.replace(/\.[^/.]+$/, ""); // Получаем имя файла без расширения
+          setBaseName(newBaseName); // Шаг 2: Обновляем состояние baseName
+          console.log("Base Name set to:", newBaseName); // Логирование для проверки
           
-          // Обновляем слои с новыми путями к изображениям
           const newLayers: Layer[] = [
             {
               id: "elevation",
               name: "Рельеф местности",
               description: "Отображает высоту поверхности Луны. Темные области - низменности, светлые - возвышенности.",
               enabled: true,
-              imagePath: `/images/layers/${baseName}_elevation.png`,
-              rawImagePath: `/images/layers/${baseName}_elevation.png`,
+              imagePath: `/output/layers/${baseName}_elevation.png`, // Обновлено
+              rawImagePath: `/output/images/${baseName}_elevation.png`, // Обновлено
               type: "height",
               isActive: true,
             },
@@ -2481,8 +2491,8 @@ export default function MoonMapPage() {
               name: "Наклон поверхности",
               description: "Отображает угол наклона поверхности. Полезно для определения пригодности участка для строительства.",
               enabled: false,
-              imagePath: `/images/layers/${baseName}_slope.png`,
-              rawImagePath: `/images/layers/${baseName}_slope.png`,
+              imagePath: `/output/layers/${baseName}_slope.png`, // Обновлено
+              rawImagePath: `/output/images/${baseName}_slope.png`, // Обновлено
               type: "slope",
               isActive: false,
             },
@@ -2491,8 +2501,8 @@ export default function MoonMapPage() {
               name: "Освещенность",
               description: "Показывает уровень освещенности поверхности.",
               enabled: false,
-              imagePath: `/images/layers/${baseName}_illumination.png`,
-              rawImagePath: `/images/layers/${baseName}_illumination.png`,
+              imagePath: `/output/layers/${baseName}_illumination.png`, // Обновлено
+              rawImagePath: `/output/images/${baseName}_illumination.png`, // Обновлено
               type: "spectral",
               isActive: false,
             },
@@ -2501,8 +2511,8 @@ export default function MoonMapPage() {
               name: "Тени",
               description: "Показывает затененные участки поверхности.",
               enabled: false,
-              imagePath: `/images/layers/${baseName}_shadows.png`,
-              rawImagePath: `/images/layers/${baseName}_shadows.png`,
+              imagePath: `/output/layers/${baseName}_shadows.png`, // Обновлено
+              rawImagePath: `/output/images/${baseName}_shadows.png`, // Обновлено
               type: "shadows",
               isActive: false,
             },
@@ -2511,13 +2521,14 @@ export default function MoonMapPage() {
               name: "Ледяные отложения",
               description: "Показывает предполагаемые места скопления водяного льда в кратерах.",
               enabled: false,
-              imagePath: `/images/layers/${baseName}_ice_probability.png`,
-              rawImagePath: `/images/layers/${baseName}_ice_probability.png`,
+              imagePath: `/output/layers/${baseName}_ice_probability.png`, // Обновлено
+              rawImagePath: `/output/images/${baseName}_ice_probability.png`, // Обновлено
               type: "ice",
               isActive: false,
             }
           ];
           
+          console.log("Пути обновились!")
           setLayers(newLayers);
           
           // Показываем сообщение об успехе
@@ -2841,7 +2852,7 @@ export default function MoonMapPage() {
         }
         return {
           ...layer,
-          imagePath: `/images/layers/${selectedArea}_${filename}.png`
+          imagePath: `/output/layers/${selectedArea}_${filename}.png`
         };
       }));
     }
@@ -2853,7 +2864,7 @@ export default function MoonMapPage() {
   const handleLayerClick = (layer: Layer) => {
     console.log('Viewing layer with legend:', layer.id, 'using imagePath:', layer.imagePath);
     setSelectedImage({ 
-      path: layer.imagePath,
+      path: `/output/layers/${baseName}_${layer.id}.png`,
       title: layer.name 
     });
   };
@@ -2886,6 +2897,33 @@ export default function MoonMapPage() {
       return () => window.removeEventListener('resize', handleResize);
     }
   }, []);
+
+  // Добавляем функцию проверки файлов
+  const checkInputFiles = async () => {
+    try {
+      const response = await fetch('/api/check-input-files');
+      if (!response.ok) {
+        throw new Error('Failed to check input files');
+      }
+      const data = await response.json();
+      
+      // Обновляем список загруженных файлов
+      const newTerrainUploads = data.files.map((file: { name: string, fullName: string }) => ({
+        id: `terrain_${file.name}`,
+        name: file.name,
+        date: new Date().toLocaleDateString(),
+        loaded: true,
+        progress: 100,
+        heightDataLoaded: true,
+        spectralDataLoaded: true,
+        iceDataLoaded: true
+      }));
+      
+      setTerrainUploads(newTerrainUploads);
+    } catch (error) {
+      console.error('Error checking input files:', error);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -3078,6 +3116,12 @@ export default function MoonMapPage() {
                     onClick={() => setShowLoadProjectDialog(true)}
                   >
                     Загрузить сохранение
+                  </button>
+                  <button
+                    className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                    onClick={checkInputFiles}
+                  >
+                    Обновить список
                   </button>
                   <div>
                     <span className="text-green-600 flex items-center">
