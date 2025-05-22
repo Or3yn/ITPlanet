@@ -7,9 +7,8 @@
     <list default="true" id="6db5cf4e-37ea-444f-9d10-479d8dc4e673" name="Changes" comment="chore: initial commit with full project structure and base configuration">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/moon-map/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/moon-map/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/requirements/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/requirements/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/spectral-analysis/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/spectral-analysis/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pnpm-lock.yaml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/public/input/test2.tif" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -40,7 +39,7 @@
   </component>
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/Or3yn/ITPlanet.git&quot;,
+    &quot;url&quot;: &quot;git@github.com:Or3yn/ITPlanet.git&quot;,
     &quot;accountId&quot;: &quot;77a8bb2e-549e-445d-8c0a-64251330f99d&quot;
   }
 }</component>
@@ -55,15 +54,21 @@
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
     "RunOnceActivity.ShowReadmeOnStart": "true",
-    "git-widget-placeholder": "feat/footer",
+    "git-widget-placeholder": "fix-deploy-sofia",
     "ignore.virus.scanning.warn.message": "true",
+    "last_opened_file_path": "C:/ITPlanet/public/input",
     "node.js.detected.package.eslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
     "nodejs_package_manager_path": "pnpm",
-    "ts.external.directory.path": "C:\\Users\\bog01\\OneDrive\\Рабочий стол\\ITPlanet\\node_modules\\typescript\\lib",
+    "ts.external.directory.path": "C:\\ITPlanet\\node_modules\\typescript\\lib",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\ITPlanet\public\input" />
+    </key>
+  </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>

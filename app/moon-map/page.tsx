@@ -71,7 +71,7 @@ interface Layer {
   enabled: boolean
   imagePath: string
   rawImagePath: string
-  type: 'height' | 'spectral' | 'slope' | 'ice' | 'shadows'
+  type: 'elevation' | 'illumination' | 'slope' | 'ice' | 'shadows'
   isActive: boolean
 }
 
@@ -549,23 +549,23 @@ export default function MoonMapPage() {
   // Layer management
   const [layers, setLayers] = useState<Layer[]>([
     {
-      id: "height",
+      id: "elevation",
       name: "Рельеф местности",
       description: "Отображает высоту поверхности Луны. Темные области - низменности, светлые - возвышенности.",
       enabled: true,
-      imagePath: "/output/images/height.png",
+      imagePath: "/output/images/elevation.png",
       rawImagePath: `/output/layers/${baseName}_elevation.png`,
-      type: "height",
+      type: "elevation",
       isActive: true,
     },
     {
-      id: "spectral",
+      id: "illumination",
       name: "Спектральный анализ",
       description: "Показывает минералогический состав поверхности. Разные цвета соответствуют разным минералам.",
       enabled: false,
-      imagePath: "/output/images/spectral.png",
+      imagePath: "/output/images/illumination.png",
       rawImagePath: `/output/layers/${baseName}_illumination.png`,
-      type: "spectral",
+      type: "illumination",
       isActive: false,
     },
     {
@@ -579,13 +579,13 @@ export default function MoonMapPage() {
       isActive: false,
     },
     {
-      id: "ice_probability",
+      id: "ice",
       name: "Ледяные отложения",
       description: "Показывает вероятность наличия льда на поверхности.",
       enabled: false,
-      imagePath: `/output/layers/${baseName}_ice_probability.png`,
-      rawImagePath: `/output/images/${baseName}_ice_probability.png`,
-      type: "spectral",
+      imagePath: `/output/layers/${baseName}_ice.png`,
+      rawImagePath: `/output/images/${baseName}_ice.png`,
+      type: "ice",
       isActive: false,
     },
     {
@@ -1796,9 +1796,9 @@ export default function MoonMapPage() {
   // Добавляем функцию для получения иконок слоев
   const getLayerIcon = (type: string) => {
     switch (type) {
-      case 'height':
+      case 'elevation':
         return '🗺️';
-      case 'spectral':
+      case 'illumination':
         return '🌈';
       case 'slope':
         return '⛰️';
@@ -2483,7 +2483,7 @@ export default function MoonMapPage() {
               enabled: true,
               imagePath: `/output/layers/${baseName}_elevation.png`, // Обновлено
               rawImagePath: `/output/images/${baseName}_elevation.png`, // Обновлено
-              type: "height",
+              type: "elevation",
               isActive: true,
             },
             {
@@ -2503,7 +2503,7 @@ export default function MoonMapPage() {
               enabled: false,
               imagePath: `/output/layers/${baseName}_illumination.png`, // Обновлено
               rawImagePath: `/output/images/${baseName}_illumination.png`, // Обновлено
-              type: "spectral",
+              type: "illumination",
               isActive: false,
             },
             {
@@ -2521,8 +2521,8 @@ export default function MoonMapPage() {
               name: "Ледяные отложения",
               description: "Показывает предполагаемые места скопления водяного льда в кратерах.",
               enabled: false,
-              imagePath: `/output/layers/${baseName}_ice_probability.png`, // Обновлено
-              rawImagePath: `/output/images/${baseName}_ice_probability.png`, // Обновлено
+              imagePath: `/output/layers/${baseName}_ice.png`, // Обновлено
+              rawImagePath: `/output/images/${baseName}_ice.png`, // Обновлено
               type: "ice",
               isActive: false,
             }
@@ -2832,17 +2832,17 @@ export default function MoonMapPage() {
       setLayers(prevLayers => prevLayers.map(layer => {
         let filename;
         switch (layer.type) {
-          case 'height':
+          case 'elevation':
             filename = 'elevation';
             break;
-          case 'spectral':
+          case 'illumination':
             filename = 'illumination';
             break;
           case 'slope':
             filename = 'slope';
             break;
           case 'ice':
-            filename = 'ice_probability';
+            filename = 'ice';
             break;
           case 'shadows':
             filename = 'shadows';
@@ -3014,7 +3014,7 @@ export default function MoonMapPage() {
                     onClick={() => {
                       // Если фильтр освещенности применен, то кратер Кабеус недоступен
                       if (filtersApplied && areaFilters.sunlight) return;
-                      
+
                       if (selectedAreas.includes("cabeus")) {
                         setSelectedAreas(selectedAreas.filter(area => area !== "cabeus"))
                       } else {
@@ -3037,7 +3037,7 @@ export default function MoonMapPage() {
                     onClick={() => {
                       // Если фильтр освещенности применен, то плато Хаворт недоступно
                       if (filtersApplied && areaFilters.sunlight) return;
-                      
+
                       if (selectedAreas.includes("haworth")) {
                         setSelectedAreas(selectedAreas.filter(area => area !== "haworth"))
                       } else {
@@ -3059,7 +3059,7 @@ export default function MoonMapPage() {
                       if (selectedAreas.includes("malapert")) {
                         // Если фильтр освещенности применен, нельзя снять выбор с горы Малаперт
                         if (filtersApplied && areaFilters.sunlight) return;
-                        
+
                         setSelectedAreas(selectedAreas.filter(area => area !== "malapert"))
                       } else {
                         setSelectedAreas([...selectedAreas, "malapert"])
@@ -3127,8 +3127,8 @@ export default function MoonMapPage() {
                     <span className="text-green-600 flex items-center">
                       <Check className="h-5 w-5 mr-1" />
                       Данные для{" "}
-                      {selectedAreas.length > 1 
-                        ? "выбранных участков" 
+                      {selectedAreas.length > 1
+                        ? "выбранных участков"
                         : selectedArea === "shackleton"
                           ? "Кратера Шеклтон"
                           : selectedArea === "cabeus"
