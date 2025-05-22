@@ -3385,7 +3385,10 @@ export default function MoonMapPage() {
                   <select
                     className="w-full border-gray-300 rounded-md shadow-sm p-2 border"
                     value={selectedArea}
-                    onChange={(e) => setSelectedArea(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedArea(e.target.value);
+                      setBaseName(e.target.value);
+                    }}
                   >
                     {/* Если применен фильтр освещённости, показываем только гору Малаперт */}
                     {filtersApplied && areaFilters.sunlight ? (
