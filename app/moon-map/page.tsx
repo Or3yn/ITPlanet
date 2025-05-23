@@ -660,16 +660,29 @@ export default function MoonMapPage() {
 
   // Обработчик выбора инфраструктуры
   const handleInfrastructureSelect = (type: InfrastructureKey, category: "habitable" | "tech") => {
-    if (category === "habitable") {
-      setSelectedHabitableModule(type === selectedHabitableModule ? null : type)
-      setSelectedTechObject(null)
-    } else {
-      setSelectedTechObject(type === selectedTechObject ? null : type)
-      setSelectedHabitableModule(null)
+    try {
+      // Проверяем, что тип существует в objectSizes
+      if (!objectSizes[type]) {
+        console.error(`Invalid infrastructure type: ${type}`)
+        return
+      }
+
+      if (category === "habitable") {
+        setSelectedHabitableModule(type === selectedHabitableModule ? null : type)
+        setSelectedTechObject(null)
+      } else {
+        setSelectedTechObject(type === selectedTechObject ? null : type)
+        setSelectedHabitableModule(null)
+      }
+      
+      setSelectedInfrastructure(type)
+      setDraggedObject(type)
+      setShowPlacementCriteria(true)
+    } catch (error) {
+      console.error('Error in handleInfrastructureSelect:', error)
+      setErrorMessage("❌ Ошибка при выборе модуля")
+      setTimeout(() => setErrorMessage(null), 3000)
     }
-    setSelectedInfrastructure(type)
-    setDraggedObject(type)
-    setShowPlacementCriteria(true)
   }
 
   // Теперь обновим функцию canPlaceObject, чтобы проверять, находится ли объект внутри активной зоны
@@ -745,29 +758,41 @@ export default function MoonMapPage() {
 
   // Обработчик размещения объекта
   const handlePlaceObject = (x: number, y: number) => {
-    if (!selectedInfrastructure) return
-
-    const size = objectSizes[selectedInfrastructure as InfrastructureKey]
-    if (!size) return
-
-    const { width, height, safetyZone } = size
-    
-    // Проверяем возможность размещения
-    if (canPlaceObject(x, y, width, height, safetyZone)) {
-      const newObject: PlacedObject = {
-        id: Date.now().toString(),
-        type: selectedInfrastructure,
-        name: `${objectNames[selectedInfrastructure as InfrastructureKey]}-${Date.now().toString().slice(-4)}`,
-        x,
-        y,
-        width,
-        height,
-        safetyZone,
-        color: objectColors[selectedInfrastructure as InfrastructureKey] || "bg-gray-500",
+    try {
+      if (!selectedInfrastructure) {
+        console.error('No infrastructure selected')
+        return
       }
 
-      setPlacedObjects([...placedObjects, newObject])
-      setErrorMessage("✅ Объект успешно размещен")
+      const size = objectSizes[selectedInfrastructure as InfrastructureKey]
+      if (!size) {
+        console.error(`No size defined for infrastructure type: ${selectedInfrastructure}`)
+        return
+      }
+
+      const { width, height, safetyZone } = size
+      
+      // Проверяем возможность размещения
+      if (canPlaceObject(x, y, width, height, safetyZone)) {
+        const newObject: PlacedObject = {
+          id: Date.now().toString(),
+          type: selectedInfrastructure,
+          name: `${objectNames[selectedInfrastructure as InfrastructureKey] || 'Unknown'}-${Date.now().toString().slice(-4)}`,
+          x,
+          y,
+          width,
+          height,
+          safetyZone,
+          color: objectColors[selectedInfrastructure as InfrastructureKey] || "bg-gray-500",
+        }
+
+        setPlacedObjects([...placedObjects, newObject])
+        setErrorMessage("✅ Объект успешно размещен")
+        setTimeout(() => setErrorMessage(null), 3000)
+      }
+    } catch (error) {
+      console.error('Error in handlePlaceObject:', error)
+      setErrorMessage("❌ Ошибка при размещении объекта")
       setTimeout(() => setErrorMessage(null), 3000)
     }
   }
@@ -881,30 +906,10 @@ export default function MoonMapPage() {
     const mouseX = e.clientX - rect.left
     const mouseY = e.clientY - rect.top
 
-    // Calculate cell coordinates
-    const cellX = Math.floor((mouseX - mapPosition.x) / (cellSize * mapZoom))
-    const cellY = Math.floor((mouseY - mapPosition.y) / (cellSize * mapZoom))
-
-    // Clear existing timer if mouse moves to a new cell
-    if (hoveredCell?.x !== cellX || hoveredCell?.y !== cellY) {
-      if (hoverTimer) {
-        clearTimeout(hoverTimer)
-      }
-      setShowPreview(false)
-      
-      // Set new timer for the current cell
-      const timer = setTimeout(() => {
-        setHoveredCell({ x: cellX, y: cellY })
-        setShowPreview(true)
-      }, 500) // 500ms delay
-      
-      setHoverTimer(timer)
-    }
-
+    // Обновляем позицию карты только при зажатой кнопке мыши
     if (isDragging && dragStartState) {
       const deltaX = mouseX - dragStartState.mouseX
       const deltaY = mouseY - dragStartState.mouseY
-
       setMapPosition({
         x: dragStartState.mapX + deltaX,
         y: dragStartState.mapY + deltaY
@@ -1008,68 +1013,27 @@ export default function MoonMapPage() {
     if (!mapRef.current) return
 
     const rect = mapRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    
-    // Calculate cell coordinates
-    const cellX = Math.floor((x - mapPosition.x) / (cellSize * mapZoom))
-    const cellY = Math.floor((y - mapPosition.y) / (cellSize * mapZoom))
+    const mouseX = e.clientX - rect.left
+    const mouseY = e.clientY - rect.top
 
-    // Check if coordinates tool is active and if we have area data
-    if (activeAnalysisTool === "coordinates" && areaData) {
-      // Find the tile at these coordinates
-      const tile = areaData.tiles.find(t => 
-        t?.pixel_coords?.x_min <= cellX * (500/gridSize) && 
-        t?.pixel_coords?.x_max >= cellX * (500/gridSize) && 
-        t?.pixel_coords?.y_min <= cellY * (500/gridSize) && 
-        t?.pixel_coords?.y_max >= cellY * (500/gridSize)
-      );
-      
-      if (tile) {
-        setSelectedTile(tile);
-        setShowTileModal(true); // Открываем модальное окно вместо временного отображения
-      }
-      return;
-    }
+    // Точный расчет координат ячейки
+    const cellX = Math.round((mouseX - mapPosition.x) / (cellSize * mapZoom))
+    const cellY = Math.round((mouseY - mapPosition.y) / (cellSize * mapZoom))
 
-    if (activeAnalysisTool === "measure") {
-      if (!isMeasuring) {
-        setMeasurementStartState({ x, y })
-        setIsMeasuring(true)
-      } else {
-        if (measurementStartState) {
-          const distance = Math.sqrt(
-            Math.pow(x - measurementStartState.x, 2) + Math.pow(y - measurementStartState.y, 2)
-          )
-          
-          // Calculate cell coordinates for start and end
-          const startCellX = Math.floor((measurementStartState.x - mapPosition.x) / (cellSize * mapZoom))
-          const startCellY = Math.floor((measurementStartState.y - mapPosition.y) / (cellSize * mapZoom))
-          const endCellX = Math.floor((x - mapPosition.x) / (cellSize * mapZoom))
-          const endCellY = Math.floor((y - mapPosition.y) / (cellSize * mapZoom))
-          
-          // Create a new measurement with string ID
-          const newMeasurement: Measurement = {
-            id: Date.now().toString(),
-            startX: startCellX,
-            startY: startCellY,
-            endX: endCellX,
-            endY: endCellY,
-            distance: distance,
-            color: "blue"
-          }
-          
-          setMeasurements([...measurements, newMeasurement])
-          setIsMeasuring(false)
-        }
+    // Если включен инструмент просмотра координат
+    if (activeAnalysisTool === "coordinates") {
+      const currentTile = areaData?.tiles?.find(t => 
+        t?.pixel_coords?.x_min === cellX * TILE_SIZE && 
+        t?.pixel_coords?.y_min === cellY * TILE_SIZE
+      )
+      if (currentTile) {
+        setSelectedTile(currentTile)
+        setShowTileModal(true)
       }
-    } else if (activeAnalysisTool === "polygon") {
-      if (!drawingPolygon) {
-        setPolygonPoints([{ x, y }])
-        setDrawingPolygon(true)
-      } else {
-        setPolygonPoints([...polygonPoints, { x, y }])
-      }
+    } 
+    // Если выбран объект для размещения
+    else if (selectedInfrastructure) {
+      handlePlaceObject(cellX, cellY)
     }
   }
 
@@ -1431,18 +1395,15 @@ export default function MoonMapPage() {
   const renderPlacedObjects = () => {
     const elements: React.ReactNode[] = []
 
-    // First render safety zones as gray squares
+    // Рендерим зоны безопасности
     placedObjects.forEach((obj) => {
-      // Calculate the area covered by the safety zone
       const startX = Math.max(0, obj.x - obj.safetyZone)
       const startY = Math.max(0, obj.y - obj.safetyZone)
       const endX = Math.min(gridSize, obj.x + obj.width + obj.safetyZone)
       const endY = Math.min(gridSize, obj.y + obj.height + obj.safetyZone)
 
-      // Create gray squares for each cell in the safety zone
       for (let y = startY; y < endY; y++) {
         for (let x = startX; x < endX; x++) {
-          // Skip the object itself
           if (x >= obj.x && x < obj.x + obj.width && y >= obj.y && y < obj.y + obj.height) {
             continue
           }
@@ -1462,7 +1423,7 @@ export default function MoonMapPage() {
       }
     })
 
-    // Then render the objects themselves
+    // Рендерим объекты
     placedObjects.forEach((obj) => {
       elements.push(
         <div
@@ -1476,7 +1437,6 @@ export default function MoonMapPage() {
           onClick={() => handleRouteObjectClick(obj)}
           title={obj.name}
         >
-          {/* И */}
           <div className="text-2xl">
             {obj.type === "residential-ind" && "🏠"}
             {obj.type === "residential-common" && "🏘️"}
@@ -2925,6 +2885,19 @@ export default function MoonMapPage() {
     }
   };
 
+  // Добавляем эффект для отслеживания изменений baseName
+  useEffect(() => {
+    console.log('baseName changed to:', baseName);
+  }, [baseName]);
+
+  // Обновляем обработчик изменения select
+  const handleAreaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newValue = e.target.value;
+    setSelectedArea(newValue);
+    setBaseName(newValue);
+    console.log('Select changed to:', newValue);
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
@@ -3385,10 +3358,7 @@ export default function MoonMapPage() {
                   <select
                     className="w-full border-gray-300 rounded-md shadow-sm p-2 border"
                     value={selectedArea}
-                    onChange={(e) => {
-                      setSelectedArea(e.target.value);
-                      setBaseName(e.target.value);
-                    }}
+                    onChange={handleAreaChange}
                   >
                     {/* Если применен фильтр освещённости, показываем только гору Малаперт */}
                     {filtersApplied && areaFilters.sunlight ? (

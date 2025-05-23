@@ -4,11 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="6db5cf4e-37ea-444f-9d10-479d8dc4e673" name="Changes" comment="chore: initial commit with full project structure and base configuration">
+    <list default="true" id="6db5cf4e-37ea-444f-9d10-479d8dc4e673" name="Changes" comment="fix: file paths changed and shackleton added by default">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/moon-map/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/moon-map/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pnpm-lock.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/public/input/test2.tif" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -82,6 +80,7 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="chore: initial commit with full project structure and base configuration" />
-    <option name="LAST_COMMIT_MESSAGE" value="chore: initial commit with full project structure and base configuration" />
+    <MESSAGE value="fix: file paths changed and shackleton added by default" />
+    <option name="LAST_COMMIT_MESSAGE" value="fix: file paths changed and shackleton added by default" />
   </component>
 </project>
