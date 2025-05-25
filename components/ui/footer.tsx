@@ -81,7 +81,7 @@ export function Footer() {
             <Link href="/" className="text-lg font-bold">
               🌕 Планировщик лунной базы
             </Link>
-            <p className="text-sm text-gray-600 mt-1">© 2024 Планировщик лунной базы. Все права защищены.</p>
+            <p className="text-sm text-gray-600 mt-1">© 2025 Планировщик лунной базы. Все права защищены, решение принадлежит ITPlanet.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-center md:text-right">
